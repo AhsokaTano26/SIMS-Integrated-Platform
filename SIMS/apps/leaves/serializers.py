@@ -8,4 +8,4 @@ class LeaveSerializer(serializers.ModelSerializer):
     class Meta:
         model = LeaveRequest
         fields = '__all__'
-        read_only_fields = ('student', 'status')
+        read_only_fields = ('student', 'created_at')
