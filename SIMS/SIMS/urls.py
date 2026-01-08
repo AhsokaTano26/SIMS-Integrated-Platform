@@ -16,8 +16,18 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from leaves.views import LeaveViewSet
+from attendance.views import AttendanceView
+
+router = DefaultRouter()
+router.register(r'leaves', LeaveViewSet, basename='leave')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('users.urls')),
+    path('api/attendance/', AttendanceView.as_view()),
+    path('api/attendance/alerts/', AttendanceView.as_view()),
+    path('api/', include(router.urls)),
 ]
