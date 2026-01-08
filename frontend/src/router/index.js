@@ -33,6 +33,15 @@ const routes = [
     name: 'NotFound',
     component: NotFound,
     meta: { requiresAuth: false }
+  },
+  {
+  path: '/register',
+  component: () => import('../views/Register.vue')
+  },
+  {
+  path: '/admin-dashboard',
+  component: () => import('../views/AdminDashboard.vue'),
+  meta: { requiresAuth: true, role: 'admin' }
   }
 ];
 

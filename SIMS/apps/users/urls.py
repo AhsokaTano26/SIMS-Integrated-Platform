@@ -1,10 +1,15 @@
-from django.urls import path
-from .views import MyTokenObtainPairView
-from rest_framework_simplejwt.views import TokenRefreshView
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import UserViewSet, MyTokenObtainPairView
+
+router = DefaultRouter()
+# 注意：这里注册为空字符串 ''，因为在总路由中已经前缀了 'users/'
+# 这样访问路径就是：/api/auth/users/
+router.register(r'', UserViewSet, basename='users')
 
 urlpatterns = [
-    # 登录接口：获取 Token
+    # 登录接口：/api/auth/login/
     path('login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    # 刷新接口：Token 过期后换新的
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # 用户管理接口：/api/auth/users/ (由 router 自动生成)
+    path('users/', include(router.urls)),
 ]

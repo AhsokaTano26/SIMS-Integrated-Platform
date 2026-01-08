@@ -1,4 +1,8 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -34,3 +38,20 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['gender_display'] = self.user.get_gender_display()  
         
         return data
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = (
+            'id', 'username', 'password', 'role', 'student_id',
+            'college', 'major', 'grade', 'class_name',
+            'education_level', 'gender', 'phone', 'birthday'
+        )
+        extra_kwargs = {
+            'password': {'write_only': True} # 密码不参与序列化输出
+        }
+
+    def create(self, validated_data):
+        # 使用 create_user 以确保密码被哈希加密
+        user = User.objects.create_user(**validated_data)
+        return user
