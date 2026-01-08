@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Login from '../views/Login.vue';
+// 1. 引入 NotFound 组件
+import NotFound from '../views/NotFound.vue';
 
 const routes = [
   {
@@ -11,7 +13,6 @@ const routes = [
   {
     path: '/student-dashboard',
     name: 'StudentDashboard',
-    // 建议使用懒加载，比赛演示时性能更好
     component: () => import('../views/StudentDashboard.vue'),
     meta: { requiresAuth: true, role: 'student' }
   },
@@ -24,6 +25,14 @@ const routes = [
   {
     path: '/',
     redirect: '/login'
+  },
+  // 2. 将通配符路由放在最后！
+  // 这里的 pathMatch 是自定义名称，(.*)* 表示匹配任意路径
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: NotFound,
+    meta: { requiresAuth: false }
   }
 ];
 
@@ -38,10 +47,9 @@ router.beforeEach((to, from, next) => {
   const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
 
   if (to.meta.requiresAuth && !token) {
-    // 未登录，拦截到登录页
     next('/login');
   } else if (to.meta.role && userInfo.role !== to.meta.role && userInfo.role !== 'admin') {
-    // 角色不匹配（比如学生想进教师后台），拦截
+    // 如果角色不匹配且不是管理员，跳回登录或提示无权访问
     next('/login');
   } else {
     next();
