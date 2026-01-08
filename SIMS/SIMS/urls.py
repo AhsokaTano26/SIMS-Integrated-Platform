@@ -19,7 +19,7 @@ from django.urls import path, include
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from leaves.views import LeaveViewSet
-from attendance.views import AttendanceView
+from attendance.views import AttendanceView, StatisticsView
 
 router = DefaultRouter()
 router.register(r'leaves', LeaveViewSet, basename='leave')
@@ -30,4 +30,5 @@ urlpatterns = [
     path('api/attendance/', AttendanceView.as_view()),
     path('api/attendance/alerts/', AttendanceView.as_view()),
     path('api/', include(router.urls)),
+    path('api/statistics/', StatisticsView.as_view()),
 ]

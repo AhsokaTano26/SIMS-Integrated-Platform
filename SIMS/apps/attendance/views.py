@@ -1,7 +1,13 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from .models import Attendance
 from .utils import haversine
+from django.db.models import Count, Q
+from django.utils import timezone
+from datetime import timedelta
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from leaves.models import LeaveRequest
+from attendance.models import Attendance
+from users.models import User
 
 
 class AttendanceView(APIView):
@@ -53,3 +59,37 @@ class AttendanceView(APIView):
         } for item in abnormal_list]
 
         return Response(data)
+
+class StatisticsView(APIView):
+    # 仅限教师和管理员查看
+    def get(self, request):
+        today = timezone.now().date()
+        last_week = today - timedelta(days=7)
+
+        # 1. 学院打卡率 (热力图/柱状图数据)
+        colleges = User.objects.filter(role='student').values('college').annotate(
+            total=Count('id'),
+            present=Count('attendance', filter=Q(attendance__created_at__date=today))
+        )
+        college_data = [
+            {"name": c['college'], "value": round((c['present']/c['total'])*100, 1) if c['total'] > 0 else 0}
+            for c in colleges
+        ]
+
+        # 2. 异常趋势图 (过去7天)
+        trend_data = []
+        for i in range(7):
+            date = last_week + timedelta(days=i)
+            count = Attendance.objects.filter(created_at__date=date, is_normal=False).count()
+            trend_data.append({"date": date.strftime('%m-%d'), "count": count})
+
+        # 3. 请假原因分布 (饼图)
+        leave_reasons = LeaveRequest.objects.values('reason').annotate(count=Count('id'))
+        # 简单分类处理（实际开发中建议数据库reason字段设为选择项）
+        reason_data = [{"name": r['reason'][:4], "value": r['count']} for r in leave_reasons]
+
+        return Response({
+            "college_rate": college_data,
+            "trend": trend_data,
+            "reasons": reason_data
+        })
