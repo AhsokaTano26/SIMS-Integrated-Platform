@@ -22,12 +22,12 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     def get_permissions(self):
-        # 允许任何人访问的操作：注册 (create)、身份核验、自主重置密码
-        allow_any_actions = ['create', 'verify_user_info', 'self_reset_password']
+        # 允许任何人访问的操作：注册 (create)、身份核验
+        allow_any_actions = ['create', 'verify_user_info']
         # 增加对 me 接口的放行（只需登录）
         #已登录用户可以查看/修改自己的信息 (me, partial_update, retrieve)
         # partial_update 对应前端的 request.patch
-        if self.action in ['me', 'partial_update', 'retrieve']:
+        if self.action in ['me', 'partial_update']:
             return [permissions.IsAuthenticated()]
 
         if self.action in allow_any_actions:

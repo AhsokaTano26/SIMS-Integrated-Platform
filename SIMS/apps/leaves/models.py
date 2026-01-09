@@ -15,6 +15,6 @@ class LeaveRequest(models.Model):
     evidence = models.ImageField(upload_to='leaves/%Y/%m/', null=True, blank=True, verbose_name="证明材料")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
-    leave_for = models.TextField(verbose_name="请假去向", null=True)
+    leave_for = models.TextField(verbose_name="请假去向")
     def __str__(self):
         return f"{self.student.username} - {self.get_status_display()}"
