@@ -32,6 +32,10 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['phone'] = self.user.phone        
         data['birthday'] = self.user.birthday
 
+        data['dorm_type'] = self.user.dorm_type
+        data['dorm_type_display'] = self.user.get_dorm_type_display() # 返回 "校内住宿" 或 "校外住宿"
+        data['address'] = self.user.address
+
         # 获取培养层次的中文显示名 (如 "本科生")
         data['education_level'] = self.user.get_education_level_display() 
         data['gender_display'] = self.user.get_gender_display()  
@@ -45,6 +49,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'password', 'role', 'student_id',
             'college', 'major', 'grade', 'class_name',
             'education_level', 'gender', 'phone', 'birthday',
+            'dorm_type', 'address'
         )
         extra_kwargs = {
             'password': {'write_only': True} # 密码不参与序列化输出

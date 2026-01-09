@@ -307,6 +307,70 @@ const handleUpdateProfile = async () => {
 
 const startCheckIn = () => {
   locating.value = true
+  
+  // 1. 调用浏览器地理定位 API
+  if (!navigator.geolocation) {
+    ElMessage.error('您的浏览器不支持定位功能')
+    locating.value = false
+    return
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      try {
+        // 获取经纬度
+        const { latitude, longitude } = position.coords
+        
+        // 2. 发送 POST 请求到后端 AttendanceView
+        // 注意：请确保你的 request.js 中已经配置好了 BaseURL
+        const res = await request.post('/attendance/', {
+          lat: latitude,
+          lng: longitude
+        })
+
+        // 3. 将后端返回的 {is_normal, distance, msg} 赋值给响应式变量
+        checkStatus.value = res
+        
+        if (res.is_normal) {
+          ElMessage.success('打卡成功：位置正常')
+        } else {
+          ElMessage.warning(res.msg)
+        }
+      } catch (err) {
+        console.error(err)
+        ElMessage.error('打卡失败：' + (err.response?.data?.detail || '服务器异常'))
+      } finally {
+        locating.value = false
+      }
+    },
+    (error) => {
+      locating.value = false
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          ElMessage.error("用户拒绝了定位请求，请在浏览器地址栏左侧开启权限")
+          break
+        case error.POSITION_UNAVAILABLE:
+          ElMessage.error("位置信息不可用")
+          break
+        case error.TIMEOUT:
+          ElMessage.error("定位超时，请重试")
+          break
+        default:
+          ElMessage.error("定位发生未知错误")
+          break
+      }
+    },
+    {
+      enableHighAccuracy: true, // 建议开启高精度，否则经纬度偏差大
+      timeout: 10000,
+      maximumAge: 0
+    }
+  )
+}
+// 辅助函数
+const getStatusTag = (s) => s === 'approved' ? 'success' : s === 'rejected' ? 'danger' : 'info'
+const getStatusText = (s) => ({ pending: '待审批', approved: '已准假', rejected: '已驳回' }[s] || s)
+const openLeaveDialog = () => { leaveDialogVisible.value = true }
   setTimeout(() => { locating.value = false }, 2000)
 }
 
