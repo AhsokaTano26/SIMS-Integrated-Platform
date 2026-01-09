@@ -32,9 +32,15 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['phone'] = self.user.phone        
         data['birthday'] = self.user.birthday
 
+        # --- 新增：住宿信息返回 ---
         data['dorm_type'] = self.user.dorm_type
-        data['dorm_type_display'] = self.user.get_dorm_type_display() # 返回 "校内住宿" 或 "校外住宿"
+        data['dormitory'] = self.user.dormitory.id if self.user.dormitory else None
+        data['dormitory_name'] = self.user.dormitory.name if self.user.dormitory else "校外"
         data['address'] = self.user.address
+
+        # --- 新增：头像 URL 返回 ---
+        # 对应你在 model 中定义的 @property avatar_url
+        data['avatar'] = self.user.avatar_url
 
         # 获取培养层次的中文显示名 (如 "本科生")
         data['education_level'] = self.user.get_education_level_display() 
@@ -52,8 +58,31 @@ class UserSerializer(serializers.ModelSerializer):
             'dorm_type', 'address'
         )
         extra_kwargs = {
-            'password': {'write_only': True} # 密码不参与序列化输出
+            'password': {'write_only': True}, # 密码不参与序列化输出
+            'avatar': {'write_only': True}, # 上传时使用，不返回在 JSON 列表里
         }
+    
+    def validate(self, data):
+        """
+        在注册/更新时执行必填逻辑校验
+        """
+        dorm_type = data.get('dorm_type')
+        dormitory = data.get('dormitory')
+        address = data.get('address')
+
+        if dorm_type == 'internal':
+            if not dormitory:
+                raise serializers.ValidationError({"dormitory": "校内住宿必须选择宿舍楼"})
+            if not address:
+                raise serializers.ValidationError({"address": "校内住宿必须填写寝室号"})
+        
+        elif dorm_type == 'external':
+            if not address:
+                raise serializers.ValidationError({"address": "校外住宿必须填写详细住址"})
+            # 校外住宿强制将楼栋设为空
+            data['dormitory'] = None
+            
+        return data
 
     def create(self, validated_data):
         # 使用 create_user 以确保密码被哈希加密

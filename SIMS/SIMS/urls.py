@@ -20,6 +20,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from leaves.views import LeaveViewSet
 from attendance.views import AttendanceView, StatisticsView
+from django.conf import settings
+from django.conf.urls.static import static
 
 router = DefaultRouter()
 router.register(r'leaves', LeaveViewSet, basename='leave')
@@ -32,3 +34,6 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path('api/statistics/', StatisticsView.as_view()),
 ]
+# 仅在开发模式下使用 Django 托管媒体文件
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
