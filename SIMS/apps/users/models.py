@@ -26,9 +26,7 @@ class Dormitory(models.Model):
     # 地理坐标（用于定位打卡）
     latitude = models.FloatField(verbose_name="中心点纬度")
     longitude = models.FloatField(verbose_name="中心点经度")
-    
-    # 考勤范围
-    radius = models.IntegerField(default=200, verbose_name="考勤半径(米)")
+
 
     class Meta:
         verbose_name = '宿舍楼'
