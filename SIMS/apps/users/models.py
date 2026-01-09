@@ -9,6 +9,11 @@ class User(AbstractUser):
         ('counselor','辅导员'),
         ('admin', '管理员'),
     )
+    # 住宿类型标识
+    DORM_TYPE_CHOICES = (
+        ('internal', '校内住宿'),
+        ('external', '校外住宿'),
+    )
     # 培养层次
     LEVEL_CHOICES = (
         ('undergraduate', '本科生'),
@@ -48,6 +53,20 @@ class User(AbstractUser):
     # 4. 个人隐私信息
     phone = models.CharField(max_length=11, blank=True, verbose_name="联系电话")
     birthday = models.DateField(null=True, blank=True, verbose_name="出生日期")
+
+    # 5. 住宿信息扩展
+    dorm_type = models.CharField(
+        max_length=10, 
+        choices=DORM_TYPE_CHOICES, 
+        default='internal', 
+        verbose_name="住宿标识"
+    )
+    address = models.CharField(
+        max_length=255, 
+        blank=True, 
+        verbose_name="住宿详细地址",
+        help_text="校内：宿舍号（如8舍302）；校外：具体街道及门牌号"
+    )
     
 
     class Meta:

@@ -86,7 +86,7 @@
           </el-col>
         </el-row>
 
-        <el-form-item label="培养层次" prop="education_level">
+        <el-form-item label="培养层次/学历" prop="education_level">
           <el-select v-model="form.education_level" placeholder="选择培养层次" style="width: 100%">
             <el-option label="本科生" value="undergraduate" />
             <el-option label="硕士研究生" value="postgraduate" />
@@ -114,7 +114,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref,computed } from 'vue'
 import request from '../utils/request'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -149,23 +149,43 @@ const validateConfirmPassword = (rule, value, callback) => {
   }
 }
 
-const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
-  ],
-  re_password: [
-    { required: true, validator: validateConfirmPassword, trigger: 'blur' }
-  ],
-  student_id: [{ required: true, message: '请输入学号/工号', trigger: 'blur' }],
-  phone: [
-    { required: true, message: '请输入手机号', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的11位手机号', trigger: 'blur' }
-  ],
-  gender: [{ required: true, message: '请选择性别', trigger: 'change' }],
-  college: [{ required: true, message: '请输入学院', trigger: 'blur' }]
-}
+const rules = computed(() => {
+  const isStudent = form.role === 'student'
+  const isTeacher = form.role === 'teacher'
+
+  // 基础公共规则
+  const baseRules = {
+    username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+    password: [
+      { required: true, message: '请输入密码', trigger: 'blur' },
+      { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+    ],
+    re_password: [
+      { required: true, validator: validateConfirmPassword, trigger: 'blur' }
+    ],
+    student_id: [{ required: true, message: '请输入学号/工号', trigger: 'blur' }],
+    phone: [
+      { required: true, message: '请输入手机号', trigger: 'blur' },
+      { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的11位手机号', trigger: 'blur' }
+    ],
+    gender: [{ required: true, message: '请选择性别', trigger: 'change' }],
+    // 学院在两种角色下都是必填
+    college: [{ required: true, message: '请输入学院', trigger: 'blur' }],
+    // 年级在两种角色下都是必填
+    grade: [{ required: true, message: '请输入年级', trigger: 'blur' }],
+    // 专业在两种角色下都是必填
+    major: [{ required: true, message: '请输入专业', trigger: 'blur' }],
+    // 培养层次/学历在两种角色下都是必填
+    education_level: [{ required: true, message: '请选择培养层次/学历', trigger: 'change' }]
+  }
+
+  // 3. 只有学生身份时，班级才是必填
+  if (isStudent) {
+    baseRules.class_name = [{ required: true, message: '请输入班级', trigger: 'blur' }]
+  }
+
+  return baseRules
+})
 
 const handleRegister = async () => {
   if (!registerFormRef.value) return
