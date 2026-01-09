@@ -29,6 +29,7 @@ class Dormitory(models.Model):
 
 
     class Meta:
+        app_label = 'users'
         verbose_name = '宿舍楼'
         verbose_name_plural = '宿舍楼列表'
 

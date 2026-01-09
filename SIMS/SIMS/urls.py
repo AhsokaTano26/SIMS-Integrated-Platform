@@ -20,6 +20,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from leaves.views import LeaveViewSet
 from attendance.views import AttendanceView, StatisticsView
+from dorm_check_in.views import CheckConfigView, AttendanceView, AttendanceStatisticsView
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -33,6 +34,7 @@ urlpatterns = [
     path('api/attendance/alerts/', AttendanceView.as_view()),
     path('api/', include(router.urls)),
     path('api/statistics/', StatisticsView.as_view()),
+    path('api/dorm_check/', include('dorm_check_in.urls')),
 ]
 # 仅在开发模式下使用 Django 托管媒体文件
 if settings.DEBUG:

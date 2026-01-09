@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'users',
     'leaves',
     'attendance',
+    'dorm_check_in',
 ]
 
 AUTH_USER_MODEL = 'users.User'
