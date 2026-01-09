@@ -134,8 +134,9 @@
               </el-table-column>
 
               <el-table-column prop="reason" label="请假事由" min-width="150" show-overflow-tooltip />
+              <el-table-column prop="leave_for" label="前往地点" min-width="150" show-overflow-tooltip />
 
-              <el-table-column label="请假时间段" width="240">
+              <el-table-column label="请假时间段" width="150">
                 <template #default="scope">
                   <div class="time-block">
                     <div class="time-row"><el-icon><Timer /></el-icon> {{ formatDate(scope.row.start_time) }}</div>
@@ -162,15 +163,15 @@
               <el-table-column label="操作" width="180" fixed="right">
                 <template #default="scope">
                   <div v-if="scope.row.status === 'pending'" class="action-group">
-                    <el-button type="success" size="small" plain @click="handleApprove(scope.row, 'approved')">通过</el-button>
                     <el-dropdown trigger="click" @command="(cmd) => handleApprove(scope.row, cmd)">
                       <el-button type="info" size="small" plain class="more-btn">
-                        更多<el-icon class="el-icon--right"><arrow-down /></el-icon>
+                        处理<el-icon class="el-icon--right"><arrow-down /></el-icon>
                       </el-button>
                       <template #dropdown>
                         <el-dropdown-menu>
-                          <el-dropdown-item command="returned">↩️ 退回修改</el-dropdown-item>
-                          <el-dropdown-item command="rejected" divided style="color: #ef4444">❌ 驳回申请</el-dropdown-item>
+                          <el-dropdown-item command="approved">通过申请</el-dropdown-item>
+                          <el-dropdown-item command="returned">退回修改</el-dropdown-item>
+                          <el-dropdown-item command="rejected" divided style="color: #ef4444">驳回申请</el-dropdown-item>
                         </el-dropdown-menu>
                       </template>
                     </el-dropdown>
