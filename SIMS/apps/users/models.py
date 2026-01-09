@@ -29,6 +29,7 @@ class User(AbstractUser):
     grade = models.CharField(max_length=10, blank=True, verbose_name="年级", help_text="如：2023级")
     class_name = models.CharField(max_length=50, blank=True, verbose_name="班级")
     
+    
     # 3. 培养信息
     education_level = models.CharField(
         max_length=20, 
@@ -46,6 +47,18 @@ class User(AbstractUser):
     # 4. 个人隐私信息
     phone = models.CharField(max_length=11, blank=True, verbose_name="联系电话")
     birthday = models.DateField(null=True, blank=True, verbose_name="出生日期")
+
+    # 5. 关联字段
+    instructor = models.ForeignKey(
+        'self', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='students',
+        verbose_name="辅导员",
+        limit_choices_to={'role': 'teacher'}  # 限制只能选择角色为辅导员的用户
+    )
+    
 
     class Meta:
         verbose_name = '用户信息'

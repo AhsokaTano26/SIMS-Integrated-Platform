@@ -12,6 +12,7 @@
         <el-button type="primary" :loading="loading" @click="handleLogin" style="width: 100%">登录</el-button>
         <div class="login-footer">
           <el-link type="primary" @click="$router.push('/register')">立即注册新账号</el-link>
+          <el-link type="info" @click="$router.push('/reset-password')">忘记密码？</el-link>
         </div>
       </el-form>
     </el-card>

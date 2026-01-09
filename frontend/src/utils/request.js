@@ -19,12 +19,24 @@ service.interceptors.request.use(config => {
 service.interceptors.response.use(
   response => response.data,
   error => {
-    const msg = error.response?.data?.detail || '网络错误';
-    ElMessage.error(msg);
-    if (error.response?.status === 401) {
+    // 1. 获取错误信息和请求的 URL
+    const msg = error.response?.data?.detail || error.response?.data?.error || '网络错误';
+    const config = error.config; // 获取请求的配置信息
+
+    // 2. 定义不需要自动跳转登录的“白名单”接口路径
+    const whiteList = ['/auth/users/verify-user/', '/auth/users/self-reset-password/'];
+    const isWhiteList = whiteList.some(path => config.url.includes(path));
+
+    // 3. 只有不在白名单内，且状态码为 401 时才跳转
+    if (error.response?.status === 401 && !isWhiteList) {
+      ElMessage.error('登录失效，请重新登录');
       localStorage.clear();
       window.location.href = '/login';
+    } else {
+      // 如果是白名单接口报错，只弹窗提示错误，不跳转
+      ElMessage.error(msg);
     }
+
     return Promise.reject(error);
   }
 );
