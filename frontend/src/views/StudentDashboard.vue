@@ -29,9 +29,7 @@
               <div class="user-title">
                 <span class="name">{{ profileForm.username }}！欢迎回来</span>
                 <el-tag size="small" effect="dark" class="gender-tag">
-                  {{profileForm.gender === 'female' ? '♀ 女' : 
-                  (profileForm.gender === 'male' ? '♂ 男' : '⚪ 未知')
-                  }}
+                  {{ profileForm.gender === 'female' ? '♀ 女' : (profileForm.gender === 'male' ? '♂ 男' : '⚪ 未知') }}
                 </el-tag>
               </div>
               <div class="sub-info">学号：{{ profileForm.student_id }}</div>
@@ -44,11 +42,11 @@
               <el-icon><School /></el-icon> {{ profileForm.college }}学院
             </div>
             <div class="footer-item">
-              <el-icon><Reading /></el-icon> 
+              <el-icon><Reading /></el-icon>
               专业：{{ profileForm.grade }}{{ profileForm.class_name }} ({{ profileForm.major }})
             </div>
             <div class="footer-item">
-              <el-icon><User /></el-icon> 
+              <el-icon><User /></el-icon>
               辅导员：{{ profileForm.instructor_name || '未指派' }}
             </div>
           </div>
@@ -99,7 +97,6 @@
 
               <el-table :data="leaveList" v-loading="loadingList" stripe style="width: 100%">
                 <el-table-column prop="reason" label="事由" show-overflow-tooltip min-width="100" />
-
                 <el-table-column label="起止时间" width="180">
                   <template #default="scope">
                     <div style="font-size: 12px; color: #666;">
@@ -108,7 +105,6 @@
                     </div>
                   </template>
                 </el-table-column>
-
                 <el-table-column label="状态" width="90">
                   <template #default="scope">
                     <el-tag :type="getStatusTag(scope.row.status)" size="small">
@@ -116,32 +112,24 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-
                 <el-table-column label="老师意见" show-overflow-tooltip>
                   <template #default="scope">
                     <span style="font-size: 12px; color: #909399">{{ scope.row.comment || '-' }}</span>
                   </template>
                 </el-table-column>
-
                 <el-table-column label="操作" width="100" fixed="right">
                   <template #default="scope">
                     <el-button
                       v-if="scope.row.status === 'approved' && !scope.row.report_back_time"
                       type="success" size="small" link
                       @click="handleReportBack(scope.row)"
-                    >
-                      销假
-                    </el-button>
+                    >销假</el-button>
                     <el-button
                       v-else-if="scope.row.status === 'returned'"
                       type="warning" size="small" link
                       @click="handleEdit(scope.row)"
-                    >
-                      修改
-                    </el-button>
-                    <span v-else-if="scope.row.report_back_time" style="color: #67C23A; font-size: 12px;">
-                      已返校
-                    </span>
+                    >修改</el-button>
+                    <span v-else-if="scope.row.report_back_time" style="color: #67C23A; font-size: 12px;">已返校</span>
                     <span v-else>-</span>
                   </template>
                 </el-table-column>
@@ -172,37 +160,16 @@
       </template>
     </el-dialog>
 
-    <el-dialog
-      v-model="leaveDialogVisible"
-      :title="isEditMode ? '修改申请' : '发起请假申请'"
-      width="500px"
-    >
+    <el-dialog v-model="leaveDialogVisible" :title="isEditMode ? '修改申请' : '发起请假申请'" width="500px">
       <el-form :model="leaveForm" :rules="leaveRules" ref="leaveFormRef" label-width="80px">
         <el-form-item label="请假事由" prop="reason">
-          <el-input
-            v-model="leaveForm.reason"
-            type="textarea"
-            :rows="3"
-            placeholder="请详细说明请假原因..."
-          />
+          <el-input v-model="leaveForm.reason" type="textarea" :rows="3" placeholder="请详细说明请假原因..." />
         </el-form-item>
         <el-form-item label="开始时间" prop="start_time">
-          <el-date-picker
-            v-model="leaveForm.start_time"
-            type="datetime"
-            placeholder="选择离校时间"
-            style="width: 100%"
-            value-format="YYYY-MM-DD HH:mm:ss"
-          />
+          <el-date-picker v-model="leaveForm.start_time" type="datetime" placeholder="选择离校时间" style="width: 100%" value-format="YYYY-MM-DD HH:mm:ss" />
         </el-form-item>
         <el-form-item label="预计返回" prop="end_time">
-          <el-date-picker
-            v-model="leaveForm.end_time"
-            type="datetime"
-            placeholder="选择返校时间"
-            style="width: 100%"
-            value-format="YYYY-MM-DD HH:mm:ss"
-          />
+          <el-date-picker v-model="leaveForm.end_time" type="datetime" placeholder="选择返校时间" style="width: 100%" value-format="YYYY-MM-DD HH:mm:ss" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -219,10 +186,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  Location, Position, School, Reading,
-  User, ArrowDown, UserFilled, Plus
-} from '@element-plus/icons-vue'
+import { Location, Position, School, Reading, User, ArrowDown, UserFilled, Plus } from '@element-plus/icons-vue'
 import request from '../utils/request'
 
 const router = useRouter()
@@ -234,36 +198,27 @@ const locating = ref(false)
 const checkStatus = ref(null)
 const leaveList = ref([])
 const loadingList = ref(false)
-
-// 请假相关状态
 const leaveDialogVisible = ref(false)
 const submitting = ref(false)
 const leaveFormRef = ref(null)
 const isEditMode = ref(false)
 const currentLeaveId = ref(null)
 
-const leaveForm = reactive({
-  reason: '',
-  start_time: '',
-  end_time: ''
-})
-
+const leaveForm = reactive({ reason: '', start_time: '', end_time: '' })
 const leaveRules = {
   reason: [{ required: true, message: '请输入请假事由', trigger: 'blur' }],
   start_time: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
   end_time: [{ required: true, message: '请选择结束时间', trigger: 'change' }]
 }
 
-// 个人信息数据模型
 const profileForm = reactive({
-  id: '', username: '', student_id: '',
-  college: '', major: '', grade: '',
-  class_name: '', phone: '', gender: '',
-  instructor_name: ''
+  id: '', username: '', student_id: '', college: '', major: '',
+  grade: '', class_name: '', phone: '', gender: '', instructor_name: ''
 })
 
-// --- 初始化逻辑 ---
+// --- 数据加载 ---
 const loadData = async () => {
+  loadingList.value = true
   try {
     const [userRes, leaveRes] = await Promise.all([
       request.get('/auth/users/me/'),
@@ -273,12 +228,14 @@ const loadData = async () => {
     leaveList.value = leaveRes
   } catch (err) {
     ElMessage.error('数据加载失败')
+  } finally {
+    loadingList.value = false
   }
 }
 
 onMounted(loadData)
 
-// --- 事件处理：通用 ---
+// --- 个人信息处理 ---
 const handleCommand = (command) => {
   if (command === 'profile') profileVisible.value = true
   if (command === 'logout') {
@@ -305,39 +262,23 @@ const handleUpdateProfile = async () => {
   }
 }
 
+// --- 打卡逻辑 ---
 const startCheckIn = () => {
   locating.value = true
-  
-  // 1. 调用浏览器地理定位 API
   if (!navigator.geolocation) {
     ElMessage.error('您的浏览器不支持定位功能')
     locating.value = false
     return
   }
-
   navigator.geolocation.getCurrentPosition(
     async (position) => {
       try {
-        // 获取经纬度
         const { latitude, longitude } = position.coords
-        
-        // 2. 发送 POST 请求到后端 AttendanceView
-        // 注意：请确保你的 request.js 中已经配置好了 BaseURL
-        const res = await request.post('/attendance/', {
-          lat: latitude,
-          lng: longitude
-        })
-
-        // 3. 将后端返回的 {is_normal, distance, msg} 赋值给响应式变量
+        const res = await request.post('/attendance/', { lat: latitude, lng: longitude })
         checkStatus.value = res
-        
-        if (res.is_normal) {
-          ElMessage.success('打卡成功：位置正常')
-        } else {
-          ElMessage.warning(res.msg)
-        }
+        if (res.is_normal) ElMessage.success('打卡成功')
+        else ElMessage.warning(res.msg)
       } catch (err) {
-        console.error(err)
         ElMessage.error('打卡失败：' + (err.response?.data?.detail || '服务器异常'))
       } finally {
         locating.value = false
@@ -345,38 +286,13 @@ const startCheckIn = () => {
     },
     (error) => {
       locating.value = false
-      switch (error.code) {
-        case error.PERMISSION_DENIED:
-          ElMessage.error("用户拒绝了定位请求，请在浏览器地址栏左侧开启权限")
-          break
-        case error.POSITION_UNAVAILABLE:
-          ElMessage.error("位置信息不可用")
-          break
-        case error.TIMEOUT:
-          ElMessage.error("定位超时，请重试")
-          break
-        default:
-          ElMessage.error("定位发生未知错误")
-          break
-      }
+      ElMessage.error("定位失败，请确保已开启位置权限")
     },
-    {
-      enableHighAccuracy: true, // 建议开启高精度，否则经纬度偏差大
-      timeout: 10000,
-      maximumAge: 0
-    }
+    { enableHighAccuracy: true, timeout: 10000 }
   )
 }
-// 辅助函数
-const getStatusTag = (s) => s === 'approved' ? 'success' : s === 'rejected' ? 'danger' : 'info'
-const getStatusText = (s) => ({ pending: '待审批', approved: '已准假', rejected: '已驳回' }[s] || s)
-const openLeaveDialog = () => { leaveDialogVisible.value = true }
-  setTimeout(() => { locating.value = false }, 2000)
-}
 
-// --- 事件处理：请假核心逻辑 ---
-
-// 打开新增弹窗
+// --- 请假逻辑 ---
 const openLeaveDialog = () => {
   isEditMode.value = false
   leaveForm.reason = ''
@@ -385,7 +301,6 @@ const openLeaveDialog = () => {
   leaveDialogVisible.value = true
 }
 
-// 处理退回修改
 const handleEdit = (row) => {
   isEditMode.value = true
   currentLeaveId.value = row.id
@@ -395,7 +310,6 @@ const handleEdit = (row) => {
   leaveDialogVisible.value = true
 }
 
-// 提交请假（新增或修改）
 const handleSubmitLeave = async () => {
   if (!leaveFormRef.value) return
   await leaveFormRef.value.validate(async (valid) => {
@@ -403,30 +317,23 @@ const handleSubmitLeave = async () => {
       submitting.value = true
       try {
         if (isEditMode.value) {
-          // 修改逻辑：修改内容并将状态重置为 pending (后端逻辑决定)
           await request.put(`/leaves/${currentLeaveId.value}/`, { ...leaveForm, status: 'pending' })
           ElMessage.success('已重新提交申请')
         } else {
-          // 新增逻辑
           await request.post('/leaves/', leaveForm)
           ElMessage.success('申请提交成功')
         }
         leaveDialogVisible.value = false
-        loadData() // 刷新列表
-      } catch (e) {
-        // 错误由拦截器处理
-      } finally {
+        loadData()
+      } catch (e) {} finally {
         submitting.value = false
       }
     }
   })
 }
 
-// 销假逻辑
 const handleReportBack = (row) => {
   ElMessageBox.confirm('确认您已返校并进行销假操作吗？', '销假确认', {
-    confirmButtonText: '确认销假',
-    cancelButtonText: '取消',
     type: 'success'
   }).then(async () => {
     await request.post(`/leaves/${row.id}/report_back/`)
@@ -435,28 +342,14 @@ const handleReportBack = (row) => {
   })
 }
 
-// --- 辅助函数 ---
+// --- 辅助工具 ---
 const getStatusTag = (s) => {
-  const map = {
-    approved: 'success',
-    rejected: 'danger',
-    pending: 'info',
-    returned: 'warning',  // 退回
-    reported: 'primary',  // 已销假
-    canceled: 'info'
-  }
+  const map = { approved: 'success', rejected: 'danger', pending: 'info', returned: 'warning', reported: 'primary' }
   return map[s] || 'info'
 }
 
 const getStatusText = (s) => {
-  const map = {
-    pending: '待审批',
-    approved: '已准假',
-    rejected: '已驳回',
-    returned: '需修改',
-    reported: '已销假',
-    canceled: '已撤销'
-  }
+  const map = { pending: '待审批', approved: '已准假', rejected: '已驳回', returned: '需修改', reported: '已销假' }
   return map[s] || s
 }
 
@@ -468,86 +361,16 @@ const formatDate = (dateStr) => {
 </script>
 
 <style scoped>
-/* 顶部导航 */
-.dashboard-header {
-  background-color: #409eff;
-  color: white;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 24px;
-}
-
-/* 蓝色渐变卡片样式 */
-.user-profile-card {
-  background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%);
-  border-radius: 16px;
-  padding: 24px;
-  color: white;
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 24px;
-  box-shadow: 0 8px 20px rgba(24, 144, 255, 0.3);
-}
-
-.profile-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.avatar-box {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 4px;
-  border-radius: 50%;
-  margin-right: 16px;
-}
-
-.user-title .name {
-  font-size: 22px;
-  font-weight: bold;
-  display: block;
-  margin-bottom: 8px;
-}
-
-.gender-tag {
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
-  margin-left: 8px;
-}
-
-.sub-info {
-  font-size: 14px;
-  opacity: 0.9;
-}
-
-.role-badge {
-  position: absolute;
-  top: 0;
-  right: 0;
-  background: #36cfc9;
-  padding: 4px 12px;
-  font-size: 12px;
-  border-bottom-left-radius: 12px;
-}
-
-/* 底部横栏信息 */
-.profile-footer {
-  display: flex;
-  justify-content: space-between;
-  background: rgba(0, 0, 0, 0.1);
-  margin: 0 -24px -24px -24px;
-  padding: 12px 24px;
-  font-size: 14px;
-}
-
-.footer-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
+.dashboard-header { background-color: #409eff; color: white; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; }
+.user-profile-card { background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%); border-radius: 16px; padding: 24px; color: white; position: relative; overflow: hidden; margin-bottom: 24px; box-shadow: 0 8px 20px rgba(24, 144, 255, 0.3); }
+.profile-header { display: flex; align-items: center; margin-bottom: 24px; }
+.avatar-box { background: rgba(255, 255, 255, 0.2); padding: 4px; border-radius: 50%; margin-right: 16px; }
+.user-title .name { font-size: 22px; font-weight: bold; display: block; margin-bottom: 8px; }
+.gender-tag { background: rgba(255, 255, 255, 0.2); border: none; color: white; margin-left: 8px; }
+.sub-info { font-size: 14px; opacity: 0.9; }
+.role-badge { position: absolute; top: 0; right: 0; background: #36cfc9; padding: 4px 12px; font-size: 12px; border-bottom-left-radius: 12px; }
+.profile-footer { display: flex; justify-content: space-between; background: rgba(0, 0, 0, 0.1); margin: 0 -24px -24px -24px; padding: 12px 24px; font-size: 14px; }
+.footer-item { display: flex; align-items: center; gap: 6px; }
 .dashboard-main { background-color: #f0f2f5; padding: 24px; }
 .box-card { border-radius: 12px; margin-bottom: 20px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
