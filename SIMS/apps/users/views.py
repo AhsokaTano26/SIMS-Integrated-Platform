@@ -16,15 +16,32 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)
+    
     def get_permissions(self):
         # 允许任何人访问的操作：注册 (create)、身份核验、自主重置密码
         allow_any_actions = ['create', 'verify_user_info', 'self_reset_password']
-        
+        # 增加对 me 接口的放行（只需登录）
+        #已登录用户可以查看/修改自己的信息 (me, partial_update, retrieve)
+        # partial_update 对应前端的 request.patch
+        if self.action in ['me', 'partial_update', 'retrieve']:
+            return [permissions.IsAuthenticated()]
+
         if self.action in allow_any_actions:
             return [permissions.AllowAny()]
             
         # 其他操作（如删除用户、列表查看、管理员重置）：仅限已登录的管理员
         return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
+
+    def perform_update(self, serializer):
+        # 如果不是管理员，且试图修改的不是自己的 ID
+        if not self.request.user.is_staff and self.get_object().id != self.request.user.id:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("你只能修改自己的信息")
+        serializer.save()
 
     # --- 新增：忘记密码的第一步，核验身份 ---
     @action(detail=False, methods=['post'], url_path='verify-user')
