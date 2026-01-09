@@ -5,7 +5,8 @@ from django.contrib.auth.models import AbstractUser
 class User(AbstractUser):
     ROLE_CHOICES = (
         ('student', '学生'),
-        ('teacher', '辅导员'),
+        ('teacher', '教师'),
+        ('counselor','辅导员'),
         ('admin', '管理员'),
     )
     # 培养层次
@@ -47,17 +48,6 @@ class User(AbstractUser):
     # 4. 个人隐私信息
     phone = models.CharField(max_length=11, blank=True, verbose_name="联系电话")
     birthday = models.DateField(null=True, blank=True, verbose_name="出生日期")
-
-    # 5. 关联字段
-    instructor = models.ForeignKey(
-        'self', 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
-        related_name='students',
-        verbose_name="辅导员",
-        limit_choices_to={'role': 'teacher'}  # 限制只能选择角色为辅导员的用户
-    )
     
 
     class Meta:
