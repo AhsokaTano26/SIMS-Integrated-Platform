@@ -42,6 +42,11 @@ const routes = [
   path: '/admin-dashboard',
   component: () => import('../views/AdminDashboard.vue'),
   meta: { requiresAuth: true, role: 'admin' }
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: () => import('../views/ResetPassword.vue')
   }
 ];
 
