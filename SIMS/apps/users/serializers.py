@@ -32,6 +32,9 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['phone'] = self.user.phone        
         data['birthday'] = self.user.birthday  
         # --------------------------
+        # --- 新增：辅导员姓名 ---
+        # 如果有关联的辅导员，返回其姓名；否则返回 None 或 "未分配"
+        data['instructor_name'] = self.user.instructor.username if self.user.instructor else "未分配"
 
         # 获取培养层次的中文显示名 (如 "本科生")
         data['education_level'] = self.user.get_education_level_display() 
@@ -40,12 +43,15 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 
 class UserSerializer(serializers.ModelSerializer):
+    instructor_name = serializers.ReadOnlyField(source='instructor.username', default="未分配")
     class Meta:
         model = User
         fields = (
             'id', 'username', 'password', 'role', 'student_id',
             'college', 'major', 'grade', 'class_name',
-            'education_level', 'gender', 'phone', 'birthday'
+            'education_level', 'gender', 'phone', 'birthday',
+            'instructor',       # 辅导员 ID
+            'instructor_name'
         )
         extra_kwargs = {
             'password': {'write_only': True} # 密码不参与序列化输出
