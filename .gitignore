@@ -20,7 +20,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
+SIMS/db.sqlite3
 
 # Django 静态文件与上传媒介
 /static/
