@@ -21,7 +21,8 @@ class LeaveSerializer(serializers.ModelSerializer):
             'comment',
             'created_at',
             'report_back_time',
-            'is_overdue'
+            'is_overdue',
+            "leave_for"
         ]
         # student 必须设为只读，防止学生发 POST 时伪造他人 ID
         read_only_fields = ('student', 'created_at', 'status', 'comment')
