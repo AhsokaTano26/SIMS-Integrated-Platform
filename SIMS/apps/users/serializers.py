@@ -52,7 +52,8 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         # 其他
         data['avatar'] = self.user.avatar_url
         data['education_level'] = self.user.get_education_level_display() 
-        data['gender_display'] = self.user.get_gender_display()  
+        data['gender_display'] = self.user.get_gender_display()
+        data['email'] = self.user.email
         
         return data
 
@@ -65,7 +66,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'password', 'role', 'student_id',
             'college', 'major', 'grade', 'class_name',
             'education_level', 'gender', 'phone', 'birthday','avatar','avatar_url',
-            'dorm_type','address','dormitory'
+            'dorm_type','address','dormitory','email'
         )
         extra_kwargs = {
             'password': {'write_only': True}, # 密码不参与序列化输出

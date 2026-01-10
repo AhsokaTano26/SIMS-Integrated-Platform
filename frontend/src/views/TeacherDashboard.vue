@@ -286,7 +286,7 @@
                     <div class="info-item">
                       <el-icon><School /></el-icon>
                       <span class="label">所属部门：</span>
-                      <span class="value">{{ teacherInfo.department || '学生工作处' }}</span>
+                      <span class="value">{{ teacherInfo.major || '学生工作处' }}</span>
                     </div>
                     <div class="info-item">
                       <el-icon><OfficeBuilding /></el-icon>
@@ -318,10 +318,32 @@
                           </el-form-item>
                         </el-col>
                       </el-row>
-                      <el-form-item label="个人简介">
-                        <el-input type="textarea" :rows="3" v-model="teacherInfo.bio" placeholder="请填写个人简介..." />
-                      </el-form-item>
-                      <el-button type="primary" @click="updateProfile">保存更改</el-button>
+
+                      <el-row :gutter="20">
+                        <el-col :span="12">
+                          <el-form-item label="所属学院">
+                            <el-input v-model="teacherInfo.college" placeholder="例如：信息工程学院" />
+                          </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                          <el-form-item label="部门名称">
+                            <el-input v-model="teacherInfo.major" placeholder="例如：网络安全" />
+                          </el-form-item>
+                        </el-col>
+                      </el-row>
+
+                      <el-row :gutter="20">
+                        <el-col :span="12">
+                          <el-form-item label="性别">
+                            <el-select v-model="teacherInfo.gender" style="width: 100%">
+                              <el-option label="男" value="male" />
+                              <el-option label="女" value="female" />
+                            </el-select>
+                          </el-form-item>
+                        </el-col>
+                      </el-row>
+
+                      <el-button type="primary" @click="updateProfile" :loading="loading">保存更改</el-button>
                     </el-form>
                   </el-tab-pane>
 
@@ -371,7 +393,7 @@
                   {{ studentDetail.college || '未录入' }}{{ studentDetail.grade || '未录入' }}{{ studentDetail.major || '未录入' }}{{ studentDetail.class_name || '未录入' }}
                 </el-descriptions-item>
                 <el-descriptions-item label="寝室地址">
-                  {{ studentDetail.phone || '未录入' }}
+                  {{ studentDetail.address || '未录入' }}
                 </el-descriptions-item>
               </el-descriptions>
 
@@ -428,14 +450,14 @@ const personalActiveTab = ref('info')
 const teacherInfo = ref({
   id: null,
   username: "",
-  role: "",
-  student_id: "",
   college: "",
-  education_level: "",
-  gender: "unknown",
+  major: "",
   phone: "",
-  dorm_type: "internal",
-  address: ""
+  education_level: "",
+  gender: "",
+  address: "",
+  dorm_type: "",
+  dormitory: "",
 });
 
 // 2. 映射显示文字（例如培养层次从英文转中文）
@@ -464,9 +486,50 @@ const fetchProfile = async () => {
   }
 };
 const updateProfile = async () => {
-  // 模拟保存逻辑
-  ElMessage.success('个人资料更新成功')
-}
+  if (!teacherInfo.value.id) {
+    ElMessage.error("用户信息不完整");
+    return;
+  }
+
+  try {
+    // 1. 定义所有可能修改的字段
+    const fields = [
+      'username', 'phone', 'college', 'major',
+      'education_level', 'gender', 'address'
+    ];
+
+    // 2. 动态构造 payload：只包含有值的字段
+    const payload = {};
+    fields.forEach(field => {
+      const value = teacherInfo.value[field];
+      // 只有当值不为 null, undefined 且不是空字符串时才放入 payload
+      if (value !== null && value !== undefined && value !== '') {
+        payload[field] = value;
+      }
+    });
+
+    // 打印一下看看，确保里面没有 "address": ""
+    console.log("提交的数据:", payload);
+
+    // 3. 发送请求
+    await request.patch(`/auth/users/${teacherInfo.value.id}/`, payload);
+
+    ElMessage.success('个人资料更新成功');
+
+    // 更新本地同步
+    const localUser = JSON.parse(localStorage.getItem('user_info') || '{}');
+    localStorage.setItem('user_info', JSON.stringify({ ...localUser, ...payload }));
+    teacherName.value = teacherInfo.value.username;
+
+  } catch (error) {
+    console.error("更新失败:", error);
+    // 提取后端的具体报错信息
+    const errorMsg = error.response?.data?.address?.[0] ||
+                     error.response?.data?.detail ||
+                     "更新失败，请稍后再试";
+    ElMessage.error(errorMsg);
+  }
+};
 
 const handleChangePassword = () => {
   ElMessageBox.prompt('请输入新密码', '修改密码', {
