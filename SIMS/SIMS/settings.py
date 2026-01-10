@@ -121,6 +121,26 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+SIMPLE_JWT = {
+    # Access Token 的有效期（建议设置较短，如 5-30 分钟）
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+
+    # Refresh Token 的有效期（用户在此时间内不登录也可以刷新 Access Token）
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+
+    # 每次刷新 Access Token 时，是否也刷新 Refresh Token 的有效期？
+    # 如果设为 True，用户只要活跃，Refresh Token 就会一直滚动更新，不会过期
+    'ROTATE_REFRESH_TOKENS': False,
+
+    # 只有当 ROTATE_REFRESH_TOKENS 为 True 时有效
+    # 如果设为 True，旧的 Refresh Token 会被加入黑名单（需配置黑名单 App）
+    'BLACKLIST_AFTER_ROTATION': False,
+
+    # 算法设置（默认即可）
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+}
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/

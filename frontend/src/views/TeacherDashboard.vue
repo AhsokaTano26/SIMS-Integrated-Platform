@@ -34,7 +34,7 @@
           <el-menu-item index="attendance">
             <el-icon><Position /></el-icon>
             <span>打卡管理</span>
-            <div v-if="overdueCount > 0" class="menu-badge danger">{{ overdueCount }}</div>
+            <div v-if="overdueCount > 0" class="menu-badge danger">{{ attendanceStats[3]["value"] }}</div>
           </el-menu-item>
           <el-menu-item index="personal">
             <el-icon><House /></el-icon>
@@ -53,12 +53,10 @@
           </div>
           <div class="header-right">
             <div class="user-profile">
-              <el-avatar :size="32" class="user-avatar" style="background: #4F46E5">教</el-avatar>
               <el-dropdown trigger="click">
-                <span class="el-dropdown-link">
-                  {{ teacherName }}
-                  <el-icon class="el-icon--right"><arrow-down /></el-icon>
-                </span>
+                <el-avatar :src="getFullAvatarUrl(teacherInfo.avatar_url)">
+                  {{ teacherInfo.username?.charAt(0) }}
+                </el-avatar>
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item @click="logout">退出登录</el-dropdown-item>
@@ -237,15 +235,98 @@
           </el-card>
 
           <el-card v-else-if="activeMenu === 'attendance'" class="fade-in content-card" shadow="never">
-            <template #header>
-              <div class="flex-between">
-                <div class="title-with-icon">
-                  <el-icon color="#ef4444"><WarningFilled /></el-icon>
-                  <span>严重逾期名单</span>
+            <el-tabs v-model="attendanceTab">
+              <el-tab-pane label="实时监控" name="monitor">
+                <el-row :gutter="20" class="mb-6">
+                  <el-col :span="6" v-for="stat in attendanceStats" :key="stat.label">
+                    <div class="stat-mini-card" :class="stat.type">
+                      <div class="label">{{ stat.label }}</div>
+                      <div class="value">{{ stat.value }} <span class="unit">人</span></div>
+                    </div>
+                  </el-col>
+                </el-row>
+
+                <div class="flex-between mb-4">
+                  <div class="title-with-icon">
+                    <el-icon color="#ef4444"><WarningFilled /></el-icon>
+                    <span class="font-bold">今日异常/未签到名单</span>
+                  </div>
+                  <el-button type="primary" size="small" plain icon="Bell" @click="remindAll">一键提醒未签到</el-button>
                 </div>
-                <el-tag type="danger" effect="dark" round>共 {{ overdueCount }} 人</el-tag>
-              </div>
-            </template>
+
+                <el-table :data="abnormalList" border stripe style="width: 100%">
+                  <el-table-column prop="student_name" label="姓名" width="120" />
+                  <el-table-column prop="student_id" label="学号" width="140" />
+                  <el-table-column prop="last_location" label="最后已知位置" show-overflow-tooltip />
+                  <el-table-column prop="status" label="异常原因">
+                    <template #default="scope">
+                      <el-tag :type="scope.row.is_leave ? 'warning' : 'danger'">
+                        {{ scope.row.is_leave ? '请假中' : '未打卡' }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="120">
+                    <template #default="scope">
+                      <el-button link type="primary" @click="contactStudent(scope.row)">联系学生</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+
+              <el-tab-pane label="打卡任务管理" name="tasks">
+                <div class="flex-between mb-4">
+                  <el-button type="primary" icon="Plus" @click="showCreateTask = true">发布新打卡</el-button>
+                  <el-radio-group v-model="taskFilter" size="small">
+                    <el-radio-button label="active">进行中</el-radio-button>
+                    <el-radio-button label="all">全部任务</el-radio-button>
+                  </el-radio-group>
+                </div>
+
+                <el-table :data="taskList" style="width: 100%">
+                  <el-table-column prop="title" label="任务名称" />
+                  <el-table-column label="有效时间">
+                    <template #default="scope">
+                      {{ scope.row.start }} ~ {{ scope.row.end }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="完成率" width="200">
+                    <template #default="scope">
+                      <el-progress :percentage="scope.row.rate" :status="scope.row.rate === 100 ? 'success' : ''" />
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="150">
+                    <template #default="scope">
+                      <el-button link type="primary">详情</el-button>
+                      <el-button link type="danger">结束</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+            </el-tabs>
+
+            <el-dialog v-model="showCreateTask" title="发布新打卡任务" width="450px">
+              <el-form :model="taskForm" label-position="top">
+                <el-form-item label="任务标题">
+                  <el-input v-model="taskForm.title" placeholder="如：晚寝点名、早操签到" />
+                </el-form-item>
+                <el-form-item label="打卡时间范围">
+                  <el-time-picker
+                    v-model="taskForm.timeRange"
+                    is-range
+                    range-separator="至"
+                    start-placeholder="开始"
+                    end-placeholder="结束"
+                  />
+                </el-form-item>
+                <el-form-item label="限定范围 (米)">
+                  <el-input-number v-model="taskForm.radius" :min="100" :step="100" />
+                </el-form-item>
+              </el-form>
+              <template #footer>
+                <el-button @click="showCreateTask = false">取消</el-button>
+                <el-button type="primary" @click="submitTask">立即发布</el-button>
+              </template>
+            </el-dialog>
           </el-card>
 
 
@@ -254,8 +335,8 @@
               <el-col :span="8">
                 <div class="profile-sidebar">
                   <div class="avatar-upload">
-                    <el-avatar :size="100" style="background: #4F46E5; font-size: 40px;">
-                      {{ teacherInfo.username?.[0] }}
+                    <el-avatar :size="100" :src="getFullAvatarUrl(teacherInfo.avatar_url)" style="background: #4F46E5; font-size: 40px;">
+                        {{ teacherInfo.username?.[0] }}
                     </el-avatar>
                     <div class="teacher-name-tag">
                       <h2>{{ teacherInfo.username }}</h2>
@@ -271,7 +352,12 @@
                     <el-divider direction="vertical" />
                     <div class="p-stat-item">
                       <span class="p-stat-val">{{ overdueCount }}</span>
-                      <span class="p-stat-lab">负责逾期</span>
+                      <span class="p-stat-lab">请假逾期</span>
+                    </div>
+                    <el-divider direction="vertical" />
+                    <div class="p-stat-item">
+                      <span class="p-stat-val">{{ attendanceStats[3]["value"] }}</span>
+                      <span class="p-stat-lab">打卡异常</span>
                     </div>
                   </div>
 
@@ -458,6 +544,7 @@ const teacherInfo = ref({
   address: "",
   dorm_type: "",
   dormitory: "",
+  avatar_url: "",
 });
 
 // 2. 映射显示文字（例如培养层次从英文转中文）
@@ -475,6 +562,7 @@ const fetchProfile = async () => {
     // 接入你提供的 API
     const res = await request.get('/auth/users/me/');
     teacherInfo.value = res;
+    console.log("后端返回的用户信息:", teacherInfo.value);
 
     // 同步更新顶部 Header 显示的名字
     teacherName.value = res.username;
@@ -507,9 +595,6 @@ const updateProfile = async () => {
         payload[field] = value;
       }
     });
-
-    // 打印一下看看，确保里面没有 "address": ""
-    console.log("提交的数据:", payload);
 
     // 3. 发送请求
     await request.patch(`/auth/users/${teacherInfo.value.id}/`, payload);
@@ -661,6 +746,13 @@ const formatDate = (d) => {
   return `${date.getMonth()+1}-${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`
 }
 
+const getFullAvatarUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http')) return url
+  const baseUrl = `http://127.0.0.1:8000${url}`
+  return `${baseUrl}?t=${new Date().getTime()}`
+}
+
 const logout = () => {
   localStorage.clear()
   router.push('/login')
@@ -706,8 +798,43 @@ const initCharts = () => {
   })
 }
 
+//打卡模块
+const attendanceTab = ref('monitor')
+const showCreateTask = ref(false)
+const taskFilter = ref('active')
+
+// 模拟数据
+const attendanceStats = ref([
+  { label: '今日应到', value: 120, type: 'info' },
+  { label: '正常签到', value: 108, type: 'success' },
+  { label: '异常/未签', value: 3, type: 'danger' },
+  { label: '请假缺勤', value: 5, type: 'warning' }
+])
+
+const abnormalList = ref([
+  { student_name: '张三', student_id: '2024001', last_location: '宿舍A区', is_leave: false },
+  { student_name: '李四', student_id: '2024005', last_location: '校外(最后上报)', is_leave: true }
+])
+
+const taskList = ref([
+  { title: '1月11日 晚寝签到', start: '21:00', end: '22:30', rate: 92 },
+  { title: '1月11日 早操签到', start: '07:00', end: '08:00', rate: 100 }
+])
+
+const taskForm = ref({
+  title: '',
+  timeRange: [new Date(), new Date()],
+  radius: 500
+})
+
+const submitTask = () => {
+  ElMessage.success('打卡任务发布成功，已推送至学生端')
+  showCreateTask.value = false
+}
+
 onMounted(() => {
-  fetchDashboardStats() // 页面加载时立即计算数量
+  fetchProfile()
+  fetchDashboardStats()
   fetchLeaveData()
   nextTick(() => initCharts())
 })
@@ -903,4 +1030,17 @@ onMounted(() => {
   margin-top: 20px;
   max-width: 600px;
 }
+.stat-mini-card {
+  padding: 20px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border-left: 4px solid #e2e8f0;
+}
+.stat-mini-card.success { border-left-color: #10b981; background: #ecfdf5; }
+.stat-mini-card.danger { border-left-color: #ef4444; background: #fef2f2; }
+.stat-mini-card.warning { border-left-color: #f59e0b; background: #fffbeb; }
+.stat-mini-card .label { font-size: 13px; color: #64748b; margin-bottom: 8px; }
+.stat-mini-card .value { font-size: 24px; font-weight: bold; color: #1e293b; }
+.stat-mini-card .unit { font-size: 12px; font-weight: normal; color: #94a3b8; }
+.mb-6 { margin-bottom: 24px; }
 </style>
