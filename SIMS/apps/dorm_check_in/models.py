@@ -12,6 +12,8 @@ class CheckConfig(models.Model):
     normal_start = models.TimeField(verbose_name="正常签到开始时间")
     normal_end = models.TimeField(verbose_name="正常签到结束时间")
     late_end = models.TimeField(null=True, blank=True, verbose_name="晚归截止时间")  # 可选，支持跨天
+    normal_duration = models.IntegerField(verbose_name="正常打卡时长（分钟）")
+    late_duration = models.IntegerField(default=0, verbose_name="晚归打卡时长（分钟）")
     valid_range = models.IntegerField(default=500, verbose_name="打卡有效范围（米）")
     need_material = models.BooleanField(default=False, verbose_name="是否需要上传证明材料")
     notify_normal_after_normal_end = models.BooleanField(default=True, verbose_name="正常结束后是否通知")
