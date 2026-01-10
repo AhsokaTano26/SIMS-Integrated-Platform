@@ -1,28 +1,23 @@
-from django.contrib.auth import get_user_model
-from datetime import time
-from users.models import Dormitory
-
-User = get_user_model()
-
 from django.db import models
-from datetime import datetime, timedelta, time
 from django.utils import timezone
-from users.models import User  # 假设你的 User 模型路径
+from users.models import User, Dormitory  # 确保路径正确
 
 
 class CheckConfig(models.Model):
-    """查寝配置表（单天查寝）"""
+    """查寝配置表（绝对时间点模式）"""
     config_name = models.CharField(max_length=100, verbose_name="查寝配置名称")
+
+    # check_date 建议保留，用于后台按天筛选数据，但逻辑判定以 DateTimeField 为准
     check_date = models.DateField(verbose_name="查寝日期")
 
-    # 输入字段
-    normal_start = models.TimeField(verbose_name="正常签到开始时间")
-    normal_duration = models.IntegerField(verbose_name="正常打卡时长（分钟）")
-    late_duration = models.IntegerField(default=0, verbose_name="晚归打卡时长（分钟）")
-
-    # 自动计算的存储字段（用于数据库高效查询）
-    normal_end = models.TimeField(verbose_name="正常签到结束时间", editable=False, null=True)
-    late_end = models.TimeField(null=True, blank=True, verbose_name="晚归截止时间", editable=False)
+    # 【核心修改】全部使用 DateTimeField 存储完整的时间戳
+    normal_start = models.DateTimeField(verbose_name="正常签到开始时间")
+    normal_end = models.DateTimeField(verbose_name="正常签到结束时间")
+    late_end = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="晚归截止时间（若无晚归则不填）"
+    )
 
     # 其他配置
     valid_range = models.IntegerField(default=500, verbose_name="打卡有效范围（米）")
@@ -31,8 +26,12 @@ class CheckConfig(models.Model):
     notify_late_after_late_end = models.BooleanField(default=False, verbose_name="晚归结束后是否通知")
     is_active = models.BooleanField(default=True, verbose_name="是否生效")
 
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="created_check_configs",
-                                   verbose_name="创建人")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="created_check_configs",
+        verbose_name="创建人"
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
 
     class Meta:
@@ -41,32 +40,23 @@ class CheckConfig(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        重写 save 方法，在保存到数据库前自动根据时长计算结束时间点
+        不再需要重写 save 方法计算时长。
+        逻辑校验已移至 View 层，确保存入的是经过校验的绝对时间。
         """
-        # 将 date 和 time 拼接成 datetime 进行计算
-        start_dt = datetime.combine(self.check_date, self.normal_start)
-
-        # 1. 计算正常结束时间
-        normal_end_dt = start_dt + timedelta(minutes=self.normal_duration)
-        self.normal_end = normal_end_dt.time()
-
-        # 2. 计算晚归截止时间
-        if self.late_duration > 0:
-            late_end_dt = normal_end_dt + timedelta(minutes=self.late_duration)
-            self.late_end = late_end_dt.time()
-        else:
-            self.late_end = None
-
+        # 自动同步 check_date 为开始时间的日期部分，方便管理后台筛选
+        if self.normal_start:
+            self.check_date = self.normal_start.date()
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.config_name}（{self.check_date} {self.normal_start}开始）"
+        # 格式化输出方便在后台查看
+        start_str = timezone.localtime(self.normal_start).strftime("%Y-%m-%d %H:%M")
+        return f"{self.config_name} ({start_str} 开始)"
 
 
 class Attendance(models.Model):
     """打卡记录表"""
 
-    # 将状态定义为常量，方便在视图或其他地方引用
     STATUS_NORMAL = "normal"
     STATUS_LATE = "late"
 
@@ -76,10 +66,14 @@ class Attendance(models.Model):
     ]
 
     student = models.ForeignKey(User, on_delete=models.CASCADE, related_name="attendances", verbose_name="学生")
-    student_name = models.CharField(max_length=50, verbose_name="学生姓名")  # 冗余存储，提升查询性能
+    student_name = models.CharField(max_length=50, verbose_name="学生姓名")
     dorm = models.ForeignKey(Dormitory, on_delete=models.CASCADE, related_name="attendances", verbose_name="寝室")
-    check_config = models.ForeignKey(CheckConfig, on_delete=models.CASCADE, related_name="attendances",
-                                     verbose_name="查寝配置")
+    check_config = models.ForeignKey(
+        CheckConfig,
+        on_delete=models.CASCADE,
+        related_name="attendances",
+        verbose_name="查寝配置"
+    )
 
     lat = models.FloatField(verbose_name="打卡纬度")
     lng = models.FloatField(verbose_name="打卡经度")
@@ -95,27 +89,23 @@ class Attendance(models.Model):
 
     late_reason = models.TextField(blank=True, null=True, verbose_name="晚归理由")
     material = models.FileField(
-        upload_to="attendance_materials/%Y/%m/%d/",  # 按日期存放文件更易管理
+        upload_to="attendance_materials/%Y/%m/%d/",
         blank=True,
         null=True,
         verbose_name="证明材料"
     )
-    msg = models.CharField(max_length=200, verbose_name="打卡备注")
+    msg = models.CharField(max_length=200, blank=True, null=True, verbose_name="打卡备注")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = "打卡记录"
         verbose_name_plural = "打卡记录"
-        # 核心约束：每轮查寝一个学生仅允许存在一条打卡记录
+        # 确保同一场查寝一个学生只能打一次卡
         unique_together = [["student", "check_config"]]
 
     def __str__(self):
         return f"{self.student_name} - {self.check_config.config_name} - {self.get_check_status_display()}"
 
-    # --- 修复 IDE '未解析的特性引用' 警告 ---
     def get_check_status_display(self) -> str:
-        """
-        Django 内部会动态实现此方法。
-        此处显式声明仅用于让 PyCharm 等 IDE 识别该特性，不影响运行逻辑。
-        """
+        """显式声明以辅助 IDE 代码提示"""
         return dict(self.STATUS_CHOICES).get(self.check_status, self.check_status)
