@@ -1,4 +1,3 @@
-from django.db import models
 from django.contrib.auth import get_user_model
 from datetime import time
 from users.models import Dormitory
@@ -64,27 +63,59 @@ class CheckConfig(models.Model):
         return f"{self.config_name}（{self.check_date} {self.normal_start}开始）"
 
 
-
 class Attendance(models.Model):
     """打卡记录表"""
+
+    # 将状态定义为常量，方便在视图或其他地方引用
+    STATUS_NORMAL = "normal"
+    STATUS_LATE = "late"
+
+    STATUS_CHOICES = [
+        (STATUS_NORMAL, "正常打卡"),
+        (STATUS_LATE, "晚归打卡"),
+    ]
+
     student = models.ForeignKey(User, on_delete=models.CASCADE, related_name="attendances", verbose_name="学生")
     student_name = models.CharField(max_length=50, verbose_name="学生姓名")  # 冗余存储，提升查询性能
     dorm = models.ForeignKey(Dormitory, on_delete=models.CASCADE, related_name="attendances", verbose_name="寝室")
-    check_config = models.ForeignKey(CheckConfig, on_delete=models.CASCADE, related_name="attendances", verbose_name="查寝配置")
+    check_config = models.ForeignKey(CheckConfig, on_delete=models.CASCADE, related_name="attendances",
+                                     verbose_name="查寝配置")
+
     lat = models.FloatField(verbose_name="打卡纬度")
     lng = models.FloatField(verbose_name="打卡经度")
-    distance = models.FloatField(verbose_name="与寝室的距离（米）")
+    distance = models.FloatField(verbose_name="与寝室距离（米）")
+
     check_time = models.DateTimeField(verbose_name="打卡时间")
-    check_status = models.CharField(max_length=10, choices=[("normal", "正常"), ("late", "晚归")], verbose_name="打卡状态")
+    check_status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default=STATUS_NORMAL,
+        verbose_name="打卡状态"
+    )
+
     late_reason = models.TextField(blank=True, null=True, verbose_name="晚归理由")
-    material = models.FileField(upload_to="attendance_materials/", blank=True, null=True, verbose_name="证明材料")
+    material = models.FileField(
+        upload_to="attendance_materials/%Y/%m/%d/",  # 按日期存放文件更易管理
+        blank=True,
+        null=True,
+        verbose_name="证明材料"
+    )
     msg = models.CharField(max_length=200, verbose_name="打卡备注")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = "打卡记录"
         verbose_name_plural = "打卡记录"
-        unique_together = [["student", "check_config"]]  # 每轮查寝一个学生仅一条记录
+        # 核心约束：每轮查寝一个学生仅允许存在一条打卡记录
+        unique_together = [["student", "check_config"]]
 
     def __str__(self):
-        return f"{self.student_name} - {self.check_config.config_name} - {self.check_status}"
+        return f"{self.student_name} - {self.check_config.config_name} - {self.get_check_status_display()}"
+
+    # --- 修复 IDE '未解析的特性引用' 警告 ---
+    def get_check_status_display(self) -> str:
+        """
+        Django 内部会动态实现此方法。
+        此处显式声明仅用于让 PyCharm 等 IDE 识别该特性，不影响运行逻辑。
+        """
+        return dict(self.STATUS_CHOICES).get(self.check_status, self.check_status)

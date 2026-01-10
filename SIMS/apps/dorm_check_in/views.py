@@ -159,125 +159,108 @@ class AttendanceView(APIView):
     """学生查寝打卡"""
 
     def post(self, request):
-        # 捕获JSON解析错误（解决参数格式错误返回异常的问题）
+        # 1. 捕获JSON解析错误
         try:
             request_data = request.data if isinstance(request.data, dict) else json.loads(request.body)
         except JSONDecodeError:
-            return Response({"detail": "请求参数格式错误，请检查JSON格式是否正确"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "请求参数格式错误"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 权限校验1：判断是否登录
+        # 2. 权限校验
         if not request.user.is_authenticated:
             return Response({"detail": "请先登录系统"}, status=status.HTTP_401_UNAUTHORIZED)
 
         user = request.user
-        # 权限校验2：判断身份是否合格
         if user.role != "student":
             return Response({"detail": "仅学生可打卡"}, status=status.HTTP_403_FORBIDDEN)
 
-        # 参数获取&校验
+        # 3. 参数获取与基本校验
         check_config_id = request_data.get("check_config_id")
         lat = request_data.get("lat")
         lng = request_data.get("lng")
-        late_reason = request_data.get("late_reason", "").strip()  # 去除首尾空格
+        late_reason = request_data.get("late_reason", "").strip()
         material = request.FILES.get("material")
 
         if not all([check_config_id, lat, lng]):
-            return Response({"detail": "查寝配置ID、纬度、经度为必填项"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "参数缺失：需提供配置ID和经纬度"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             check_config_id = int(check_config_id)
             lat = float(lat)
             lng = float(lng)
         except (ValueError, TypeError):
-            return Response({"detail": "查寝配置ID为整数，经纬度为数字"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "参数类型错误"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 获取查寝配置
+        # 4. 获取查寝配置
         try:
+            # 此时 check_config 已经包含了由模型 save() 自动计算出的 normal_end 和 late_end
             check_config = CheckConfig.objects.get(id=check_config_id, is_active=True)
         except CheckConfig.DoesNotExist:
             return Response({"detail": "查寝配置不存在或未生效"}, status=status.HTTP_404_NOT_FOUND)
 
-        # 时间校验
-        now = timezone.localtime(timezone.now())  # 转换为本地时间（解决时区差8小时问题）
+        # 5. 【修改处】获取本地当前时间
+        # timezone.now() 获取的是 UTC 时间
+        # timezone.localtime() 会根据 settings.py 中的 TIME_ZONE 自动转换为本地时间（如 Asia/Shanghai）
+        now = timezone.localtime(timezone.now())
+
+        # 获取适配了跨天逻辑的 aware datetime 对象
         check_latest_dt, normal_end_dt, normal_start_dt = get_check_latest_dt(check_config)
 
-        # 校验1：未到打卡开始时间
+        # 校验：未到开始时间
         if now < normal_start_dt:
             return Response({
-                "detail": f"打卡尚未开始（开始时间：{normal_start_dt.strftime('%Y-%m-%d %H:%M')}），无法打卡"
+                "detail": f"打卡尚未开始，开始时间：{normal_start_dt.strftime('%m-%d %H:%M')}"
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # 校验2：超过打卡截止时间
+        # 校验：已超过最终截止时间
         if now > check_latest_dt:
             return Response({
-                "detail": f"已超过打卡截止时间（{check_latest_dt.strftime('%Y-%m-%d %H:%M')}），无法打卡"
+                "detail": f"打卡已结束，截止时间：{check_latest_dt.strftime('%m-%d %H:%M')}"
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # 学生状态校验：校外住宿（适配User模型的dorm_type字段）
+        # 6. 学生身份与状态校验
         if user.dorm_type == "external":
-            return Response({"detail": "你属于校外住宿，无需参与本次查寝"}, status=status.HTTP_200_OK)
+            return Response({"detail": "校外住宿，无需打卡"}, status=status.HTTP_200_OK)
 
-        # 学生状态校验：校内住宿但未绑定宿舍楼
-        if user.dorm_type == "internal" and not user.dormitory:
-            return Response({"detail": "你属于校内住宿，但未绑定宿舍楼，请联系管理员"},
-                            status=status.HTTP_400_BAD_REQUEST)
+        if not user.dormitory:
+            return Response({"detail": "未绑定宿舍楼，请联系管理员"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 学生状态校验：请假（结束时间>查寝最晚时间）
-        # 修正：LeaveRequest的student_id匹配User的student_id（CharField）
-        leave_records = LeaveRequest.objects.filter(
+        # 7. 请假校验（使用 calculated aware dt 进行区间判定）
+        leave_exists = LeaveRequest.objects.filter(
             student_id=user.student_id,
             status="approved",
-            start_time__lte=check_latest_dt
-        )
-        for leave in leave_records:
-            if leave.end_time > check_latest_dt:
-                return Response(
-                    {"detail": f"你请假至{leave.end_time.strftime('%Y-%m-%d %H:%M')}，晚于查寝截止时间，无需查寝"},
-                    status=status.HTTP_200_OK)
+            start_time__lte=check_latest_dt,
+            end_time__gt=check_latest_dt
+        ).exists()
 
-        # 寝室校验（适配User模型的dormitory字段）
+        if leave_exists:
+            return Response({"detail": "你处于请假期间，无需查寝"}, status=status.HTTP_200_OK)
+
+        # 8. 位置校验
         dorm = user.dormitory
-        if not dorm:
-            return Response({"detail": "未绑定宿舍楼信息，无法打卡"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 位置校验（需实现haversine函数，计算两点距离）
         try:
             from .utils import haversine
-            # 修正：dormitory模型需有lng/lat字段，这里兼容字段名
             dist = haversine(lng, lat, float(dorm.longitude), float(dorm.latitude))
-        except AttributeError as e:
-            return Response({"detail": f"宿舍楼缺少经纬度信息：{str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
-            return Response({"detail": f"位置计算失败：{str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"detail": f"位置解析异常: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         if dist > check_config.valid_range:
-            return Response({"detail": f"打卡位置超出宿舍楼{check_config.valid_range}米范围，无法打卡"},
+            return Response({"detail": f"位置超限（距离{round(dist, 1)}米），请回到宿舍范围内打卡"},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        # 打卡状态判定
-        check_status = "normal"
-        if check_config.late_end:
-            check_status = "normal" if now <= normal_end_dt else "late"
-            # 晚归理由校验（解决JSON解析错误问题，先校验再返回）
-            if check_status == "late" and not late_reason:
-                return Response({"detail": "晚归打卡必须填写晚归理由"}, status=status.HTTP_400_BAD_REQUEST)
-        else:
+        # 9. 【核心修复】打卡状态判定
+        # 因为 normal_end_dt 是 aware datetime，直接比较即可处理跨过 00:00 的情况
+        if now <= normal_end_dt:
             check_status = "normal"
+        else:
+            check_status = "late"
+            if not late_reason:
+                return Response({"detail": "当前处于晚归时段，请填写晚归理由"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 重复打卡校验（已有记录则拒绝）
-        existing_attendance = Attendance.objects.filter(
-            student=user,
-            check_config=check_config
-        ).first()
-        if existing_attendance:
-            return Response({
-                "is_success": False,
-                "msg": "你已完成本次查寝打卡，不可重复打卡",
-                "existing_check_time": existing_attendance.check_time.strftime('%Y-%m-%d %H:%M:%S')
-            }, status=status.HTTP_200_OK)
+        # 10. 重复打卡校验
+        if Attendance.objects.filter(student=user, check_config=check_config).exists():
+            return Response({"detail": "请勿重复打卡"}, status=status.HTTP_200_OK)
 
-        # 创建打卡记录
-        # 修正：学生姓名优先取get_full_name()，无则用username（适配User模型）
+        # 11. 创建记录
         student_name = user.get_full_name() or user.username
         attendance = Attendance.objects.create(
             student=user,
@@ -290,19 +273,19 @@ class AttendanceView(APIView):
             check_time=now,
             check_status=check_status,
             late_reason=late_reason,
-            material=material,
-            msg=f"{'正常' if check_status == 'normal' else '晚归'}打卡成功"
+            material=material
         )
 
-        # 响应
+        # 修改后的返回结果
         return Response({
             "is_success": True,
-            "check_status": attendance.get_check_status_display(),
-            "student_name": attendance.student_name,
-            "student_id": user.student_id,  # 补充返回学号/工号
-            "distance": round(dist, 2),
+            "check_status": attendance.get_check_status_display(),  # 返回"正常打卡"或"晚归打卡"
+            "student_name": attendance.student_name,  # 从对象获取姓名
+            "student_id": user.student_id,  # 从User对象获取学号
+            "distance": round(attendance.distance, 2),  # 保留两位小数
             "check_time": attendance.check_time.strftime('%Y-%m-%d %H:%M:%S'),
-            "msg": attendance.msg
+            "msg": f"{'正常' if check_status == 'normal' else '晚归'}打卡成功",
+            "detail": ""  # 增加空值detail字段
         }, status=status.HTTP_201_CREATED)
 
 
