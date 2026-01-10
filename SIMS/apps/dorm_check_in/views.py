@@ -56,65 +56,80 @@ def get_valid_students(check_config):
 
 
 # ---------------------- 教师端：查寝配置接口 ----------------------
+from datetime import datetime, timedelta
+
+
 class CheckConfigView(APIView):
     """创建/修改单天查寝配置"""
 
     def post(self, request):
-        # 权限校验1：判断是否登录
+        # 权限校验保持不变
         if not request.user.is_authenticated:
             return Response({"detail": "请先登录系统"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # 权限校验2：判断身份是否合格
-        if request.user.role not in ["teacher", "counselor", "admin"]:
-            return Response({"detail": "仅教师/辅导员/管理员可配置查寝规则"}, status=status.HTTP_403_FORBIDDEN)
+        if request.user.role not in ["teacher",  "admin"]:
+            return Response({"detail": "仅教师/管理员可配置查寝规则"}, status=status.HTTP_403_FORBIDDEN)
 
-        # 捕获JSON解析错误（解决参数格式错误返回异常的问题）
         try:
             params = request.data if isinstance(request.data, dict) else json.loads(request.body)
         except JSONDecodeError:
-            return Response({"detail": "请求参数格式错误，请检查JSON格式是否正确"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "请求参数格式错误"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 参数校验
-        required_fields = ["config_name", "check_date", "normal_start", "normal_end"]
+        # --- 修改参数校验：使用时长(duration)代替结束时间 ---
+        required_fields = ["config_name", "check_date", "normal_start", "normal_duration"]
         for field in required_fields:
             if not params.get(field):
                 return Response({"detail": f"{field}为必填项"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 时间转换
         try:
+            # 1. 解析日期和开始时间
             check_date = datetime.strptime(params.get("check_date"), "%Y-%m-%d").date()
-            normal_start = datetime.strptime(params.get("normal_start"), "%H:%M").time()
-            normal_end = datetime.strptime(params.get("normal_end"), "%H:%M").time()
-            late_end = datetime.strptime(params.get("late_end"), "%H:%M").time() if params.get("late_end") else None
+            normal_start_time = datetime.strptime(params.get("normal_start"), "%H:%M").time()
+
+            # 2. 将开始时间转为 datetime 以便进行时间加减计算
+            start_dt = datetime.combine(check_date, normal_start_time)
+
+            # 3. 获取时长（分钟）
+            normal_duration = int(params.get("normal_duration"))
+            late_duration = int(params.get("late_duration", 0))
+
+            if normal_duration <= 0:
+                return Response({"detail": "正常打卡时长必须大于0"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if late_duration < 0:
+                return Response({"detail": "晚归打卡时长必须大于等于0"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+            # 4. 计算结束时间
+            # 正常结束时间 = 开始时间 + 正常时长
+            normal_end_dt = start_dt + timedelta(minutes=normal_duration)
+            normal_end = normal_end_dt.time()
+
+            # 晚归结束时间 = 正常结束时间 + 晚归时长
+            late_end = None
+            if late_duration > 0:
+                late_end_dt = normal_end_dt + timedelta(minutes=late_duration)
+                late_end = late_end_dt.time()
+
         except ValueError:
-            return Response({"detail": "日期格式为YYYY-MM-DD，时间格式为HH:MM"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "日期格式为YYYY-MM-DD，时间格式为HH:MM，时长为整数"},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        # 校验1：晚归时间必须晚于正常结束时间（跨天场景需提示）
-        if late_end:
-            if not (late_end >= normal_end >= normal_start):
-                return Response({
-                    "detail": "正常打卡开始时间必须晚于正常打卡结束时间，晚归截止时间必须晚于正常打卡结束时间。"
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-        # 校验2：valid_range非负且设置最小值（默认最小值50米）
+        # 校验 valid_range
         try:
             valid_range = int(params.get("valid_range", 500))
-            min_valid_range = 50  # 最小有效范围50米
-            if valid_range < 0:
-                return Response({"detail": f"有效范围不能为负数，最小支持{min_valid_range}米"},
-                                status=status.HTTP_400_BAD_REQUEST)
+            min_valid_range = 50
             if valid_range < min_valid_range:
-                valid_range = min_valid_range  # 自动修正为最小值
+                valid_range = min_valid_range
         except ValueError:
             return Response({"detail": "有效范围必须为整数"}, status=status.HTTP_400_BAD_REQUEST)
-
         # 创建配置
         config = CheckConfig.objects.create(
             config_name=params.get("config_name"),
             check_date=check_date,
-            normal_start=normal_start,
-            normal_end=normal_end,
-            late_end=late_end,
+            normal_start=normal_start_time,
+            normal_duration=normal_duration,
+            late_duration=late_duration,
             valid_range=valid_range,
             need_material=params.get("need_material", False),
             notify_normal_after_normal_end=params.get("notify_normal_after_normal_end", True),
@@ -123,19 +138,20 @@ class CheckConfigView(APIView):
             created_by=request.user
         )
 
-        # 响应
-        response_data = {
+
+        # 响应：返回计算出的具体时间点供前端确认
+        return Response({
             "id": config.id,
             "msg": "查寝配置创建成功",
             "config": {
                 "name": config.config_name,
                 "date": config.check_date,
-                "normal_time": f"{config.normal_start}-{config.normal_end}",
-                "late_time": config.late_end.strftime("%H:%M") if config.late_end else "无晚归时段",
+                "start_time": normal_start_time.strftime("%H:%M"),
+                "normal_end_time": config.normal_end.strftime("%H:%M"),
+                "late_end_time": config.late_end.strftime("%H:%M") if config.late_end else "无晚归时段",
                 "range": config.valid_range
             }
-        }
-        return Response(response_data, status=status.HTTP_201_CREATED)
+        }, status=status.HTTP_201_CREATED)
 
 
 # ---------------------- 学生端：打卡接口 ----------------------
@@ -300,8 +316,8 @@ class AttendanceStatisticsView(APIView):
             return Response({"detail": "请先登录系统"}, status=status.HTTP_401_UNAUTHORIZED)
 
         # 权限校验2：判断身份是否合格
-        if request.user.role not in ["teacher", "counselor", "admin"]:
-            return Response({"detail": "仅教师/辅导员/管理员可查看统计数据"}, status=status.HTTP_403_FORBIDDEN)
+        if request.user.role not in ["teacher",  "admin"]:
+            return Response({"detail": "仅教师/管理员可查看统计数据"}, status=status.HTTP_403_FORBIDDEN)
 
         # 参数获取
         check_config_id = request.query_params.get("check_config_id")
