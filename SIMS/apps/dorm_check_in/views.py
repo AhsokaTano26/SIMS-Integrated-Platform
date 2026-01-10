@@ -33,24 +33,25 @@ def get_check_latest_dt(check_config):
 
 
 def get_valid_students(check_config):
-    """获取本次查寝需参与的学生（排除校外+请假学生）"""
-    check_latest_dt, _, _ = get_check_latest_dt(check_config)
+    """获取本次查寝需参与的学生（排除校外+请假时间段有交集的学生）"""
+    # 获取查寝的起始和最晚结束时间（aware datetime）
+    check_latest_dt, _, check_start_dt = get_check_latest_dt(check_config)
 
-    # 子查询：获取需排除的请假学生ID（适配User的student_id为CharField）
-    exclude_student_ids = LeaveRequest.objects.filter(
+    # 【核心逻辑修改】：筛选请假时间段与查寝时段有“交集”的已批准申请
+    # 交集判定公式：请假开始时间 < 查寝结束时间 AND 请假结束时间 > 查寝开始时间
+    exclude_ids = LeaveRequest.objects.filter(
         status="approved",
-        end_time__gt=check_latest_dt,  # 请假结束时间 > 查寝最晚时间
-        start_time__lte=check_latest_dt  # 请假开始时间 ≤ 查寝最晚时间（避免无关请假）
+        start_time__lt=check_latest_dt,  # 请假开始在查寝结束前
+        end_time__gt=check_start_dt     # 请假结束在查寝开始后
     ).values_list("student_id", flat=True)
 
     # 筛选需参与查寝的学生
-    # 关键修改：适配User模型的住宿字段（dorm_type + dormitory）
     valid_students = User.objects.filter(
         role="student",
-        dorm_type="internal",  # 校内住宿
-        dormitory__isnull=False  # 绑定了宿舍楼
+        dorm_type="internal",
+        dormitory__isnull=False
     ).exclude(
-        student_id__in=exclude_student_ids  # 修正：用student_id而非id匹配
+        id__in=exclude_ids
     )
     return valid_students, check_latest_dt
 
@@ -197,12 +198,8 @@ class AttendanceView(APIView):
         except CheckConfig.DoesNotExist:
             return Response({"detail": "查寝配置不存在或未生效"}, status=status.HTTP_404_NOT_FOUND)
 
-        # 5. 【修改处】获取本地当前时间
-        # timezone.now() 获取的是 UTC 时间
-        # timezone.localtime() 会根据 settings.py 中的 TIME_ZONE 自动转换为本地时间（如 Asia/Shanghai）
+        # 5. 获取时间节点
         now = timezone.localtime(timezone.now())
-
-        # 获取适配了跨天逻辑的 aware datetime 对象
         check_latest_dt, normal_end_dt, normal_start_dt = get_check_latest_dt(check_config)
 
         # 校验：未到开始时间
@@ -223,17 +220,19 @@ class AttendanceView(APIView):
 
         if not user.dormitory:
             return Response({"detail": "未绑定宿舍楼，请联系管理员"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 7. 请假校验（使用 calculated aware dt 进行区间判定）
+        # 7. 【核心逻辑修改】请假交集校验
+        # 即使学生不在 get_valid_students 的初始排除名单中（例如临时批假），打卡时也需再次判定
         leave_exists = LeaveRequest.objects.filter(
-            student_id=user.student_id,
+            student_id=user.id,
             status="approved",
-            start_time__lte=check_latest_dt,
-            end_time__gt=check_latest_dt
+            start_time__lt=check_latest_dt,  # 请假开始 < 查寝结束
+            end_time__gt=normal_start_dt  # 请假结束 > 查寝开始
         ).exists()
 
         if leave_exists:
-            return Response({"detail": "你处于请假期间，无需查寝"}, status=status.HTTP_200_OK)
+            return Response({"detail": "你处于请假期间（请假时段与查寝时段有重合），无需查寝"},
+                            status=status.HTTP_200_OK)
+
 
         # 8. 位置校验
         dorm = user.dormitory
@@ -294,122 +293,111 @@ class AttendanceStatisticsView(APIView):
     """教师查看单天查寝的分阶段统计"""
 
     def get(self, request):
-        # 权限校验1：判断是否登录
+        # 1. 权限校验
         if not request.user.is_authenticated:
             return Response({"detail": "请先登录系统"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # 权限校验2：判断身份是否合格
-        if request.user.role not in ["teacher",  "admin"]:
+        if request.user.role not in ["teacher", "admin"]:
             return Response({"detail": "仅教师/管理员可查看统计数据"}, status=status.HTTP_403_FORBIDDEN)
 
-        # 参数获取
+        # 2. 获取并校验查寝配置
         check_config_id = request.query_params.get("check_config_id")
         if not check_config_id:
             return Response({"detail": "查寝配置ID为必填项"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 获取查寝配置
         try:
             check_config = CheckConfig.objects.get(id=check_config_id)
         except CheckConfig.DoesNotExist:
             return Response({"detail": "查寝配置不存在"}, status=status.HTTP_404_NOT_FOUND)
 
-        # 基础数据：需参与查寝的学生
-        valid_students, check_latest_dt = get_valid_students(check_config)
-        total_students = valid_students.count()
-        # 已打卡学生
-        checked_students = Attendance.objects.filter(check_config=check_config)
-        # 修正：获取student_id（CharField）而非id
-        checked_student_ids = checked_students.values_list("student__student_id", flat=True)
+        # 3. 获取时间节点（本地时间）
+        now = timezone.localtime(timezone.now())
+        check_latest_dt, normal_end_dt, normal_start_dt = get_check_latest_dt(check_config)
 
-        # 阶段判定
-        now = timezone.localtime(timezone.now())  # 转换为本地时间（解决时区差8小时问题）
-        _, normal_end_dt, _ = get_check_latest_dt(check_config)
-        stage = 1 if now < normal_end_dt else 2
-        stage_desc = "正常签到中" if stage == 1 else "正常签到已结束"
+        # 4. 基础数据准备
+        valid_students, _ = get_valid_students(check_config)
+        total_count = valid_students.count()
 
-        # 统计数据初始化
-        statistics = {
-            "check_config_id": check_config.id,
-            "check_date": check_config.check_date,
-            "stage": stage,
-            "stage_desc": stage_desc,
-            "total_students": total_students,
-            "check_latest_time": check_latest_dt.strftime('%Y-%m-%d %H:%M')
+
+        # 已打卡记录
+        checked_records = Attendance.objects.filter(check_config=check_config)
+        checked_student_ids = checked_records.values_list("student__student_id", flat=True)
+
+        # 5. 阶段判定逻辑
+        if now < normal_end_dt:
+            stage = 1
+            stage_desc = "正常签到进行中"
+        elif check_config.late_end and now < check_latest_dt:
+            stage = 2
+            stage_desc = "正常签到已结束，晚归签到中"
+        else:
+            stage = 3
+            stage_desc = "查寝已全部结束"
+
+        # 6. 构造返回数据模型
+        # 包含配置信息
+        response_data = {
+            "config_info": {
+                "config_id": check_config.id,
+                "config_name": check_config.config_name,
+                "check_date": check_config.check_date,
+                "normal_range": f"{check_config.normal_start.strftime('%H:%M')} 至 {check_config.normal_end.strftime('%H:%M')}",
+                "late_end": check_config.late_end.strftime('%H:%M') if check_config.late_end else "无晚归设置",
+                "stage": stage,
+                "stage_desc": stage_desc
+            },
+            "statistics": {
+                "total_students": total_count,
+                "normal_count": 0,
+                "late_count": 0,
+                "absent_count": 0
+            },
+            "lists": {
+                "normal_list": [],
+                "late_list": [],
+                "absent_list": []
+            }
         }
 
-        # 阶段1：正常签到结束前 → 仅显示已归/未归
-        if stage == 1:
-            statistics["checked_count"] = checked_students.count()
-            statistics["checked_list"] = [
-                {
-                    "student_id": item.student.student_id,  # 学号/工号（CharField）
-                    "student_name": item.student_name,
-                    "college": item.student.college,  # 补充学院信息
-                    "major": item.student.major,  # 补充专业信息
-                    "class_name": item.student.class_name,  # 补充班级信息
-                    "dorm_building": item.dorm.name,  # 宿舍楼名称
-                    "dorm_room": item.student.address,  # 寝室号（User的address字段）
-                    "check_time": item.check_time.strftime('%Y-%m-%d %H:%M')
-                } for item in checked_students
-            ]
-            statistics["unchecked_count"] = total_students - statistics["checked_count"]
-            statistics["unchecked_list"] = [
-                {
-                    "student_id": user.student_id,
-                    "student_name": user.get_full_name() or user.username,
-                    "college": user.college,
-                    "major": user.major,
-                    "class_name": user.class_name,
-                    "dorm_building": user.dormitory.name if user.dormitory else "",
-                    "dorm_room": user.address
-                } for user in valid_students.exclude(student_id__in=checked_student_ids)
-            ]
+        # 7. 分类提取名单数据
+        # 正常已归
+        normal_qs = checked_records.filter(check_status="normal")
+        response_data["statistics"]["normal_count"] = normal_qs.count()
+        response_data["lists"]["normal_list"] = self._format_student_list(normal_qs)
 
-        # 阶段2：正常签到结束后 → 显示已归/晚归/未归
-        else:
-            # 正常打卡
-            normal_students = checked_students.filter(check_status="normal")
-            statistics["normal_count"] = normal_students.count()
-            statistics["normal_list"] = [
-                {
-                    "student_id": item.student.student_id,
-                    "student_name": item.student_name,
-                    "college": item.student.college,
-                    "major": item.student.major,
-                    "class_name": item.student.class_name,
-                    "dorm_building": item.dorm.name,
-                    "dorm_room": item.student.address,
-                    "check_time": item.check_time.strftime('%Y-%m-%d %H:%M')
-                } for item in normal_students
-            ]
-            # 晚归打卡
-            late_students = checked_students.filter(check_status="late")
-            statistics["late_count"] = late_students.count()
-            statistics["late_list"] = [
-                {
-                    "student_id": item.student.student_id,
-                    "student_name": item.student_name,
-                    "college": item.student.college,
-                    "major": item.student.major,
-                    "class_name": item.student.class_name,
-                    "dorm_building": item.dorm.name,
-                    "dorm_room": item.student.address,
-                    "check_time": item.check_time.strftime('%Y-%m-%d %H:%M'),
-                    "late_reason": item.late_reason
-                } for item in late_students
-            ]
-            # 未归寝
-            statistics["absent_count"] = total_students - (statistics["normal_count"] + statistics["late_count"])
-            statistics["absent_list"] = [
-                {
-                    "student_id": user.student_id,
-                    "student_name": user.get_full_name() or user.username,
-                    "college": user.college,
-                    "major": user.major,
-                    "class_name": user.class_name,
-                    "dorm_building": user.dormitory.name if user.dormitory else "",
-                    "dorm_room": user.address
-                } for user in valid_students.exclude(student_id__in=checked_student_ids)
-            ]
+        # 晚归名单 (仅在阶段 2 和 阶段 3 显示)
+        if stage >= 2:
+            late_qs = checked_records.filter(check_status="late")
+            response_data["statistics"]["late_count"] = late_qs.count()
+            response_data["lists"]["late_list"] = self._format_student_list(late_qs, include_reason=True)
 
-        return Response(statistics, status=status.HTTP_200_OK)
+        # 未归名单 (总人数 - 所有已打卡人数)
+        absent_qs = valid_students.exclude(student_id__in=checked_student_ids)
+        response_data["statistics"]["absent_count"] = absent_qs.count()
+        # 根据要求，每个阶段都汇报未归名单
+        response_data["lists"]["absent_list"] = [
+            {
+                "student_id": s.student_id,
+                "student_name": s.get_full_name() or s.username,
+                "dorm": s.dormitory.name if s.dormitory else "未绑定",
+                "room": s.address
+            } for s in absent_qs
+        ]
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
+    def _format_student_list(self, queryset, include_reason=False):
+        """辅助函数：格式化已打卡学生列表"""
+        data_list = []
+        for item in queryset:
+            info = {
+                "student_id": item.student.student_id,
+                "student_name": item.student_name,
+                "dorm": item.dorm.name,
+                "room": item.student.address,
+                "check_time": item.check_time.strftime('%H:%M:%S')
+            }
+            if include_reason:
+                info["late_reason"] = item.late_reason
+            data_list.append(info)
+        return data_list
