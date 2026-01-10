@@ -12,8 +12,8 @@
       <el-form :model="form" @keyup.enter="handleLogin" class="login-form">
         <el-form-item>
           <el-input
-            v-model="form.username"
-            placeholder="用户名 / 手机号"
+            v-model="form.student_id"
+            placeholder="用户学号/工号"
             :prefix-icon="User"
             size="large"
           />
@@ -66,12 +66,12 @@ const loading = ref(false);
 const rememberMe = ref(false);
 
 const form = reactive({
-  username: '',
+  student_id: '',
   password: ''
 });
 
 const handleLogin = async () => {
-  if (!form.username || !form.password) return ElMessage.warning('请输入账号密码');
+  if (!form.student_id || !form.password) return ElMessage.warning('请输入账号或账号密码');
 
   loading.value = true;
   try {

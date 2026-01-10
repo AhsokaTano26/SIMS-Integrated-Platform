@@ -36,12 +36,12 @@
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="用户名" prop="username">
-                  <el-input v-model="form.username" placeholder="登录账号" />
+                  <el-input v-model="form.username" placeholder="用户姓名" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="学号 / 工号" prop="student_id">
-                  <el-input v-model="form.student_id" placeholder="ID编号" />
+                  <el-input v-model="form.student_id" placeholder="用户账号" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -80,6 +80,42 @@
               <el-segmented v-model="form.role" :options="roleOptions" class="custom-segmented" />
             </el-form-item>
 
+            <template v-if="form.role === 'student'">
+              <h3 class="group-title"><el-icon><Location /></el-icon> 住宿信息</h3>
+              <el-row :gutter="20">
+                <el-col :span="12">
+                  <el-form-item label="住宿类型" prop="dorm_type">
+                    <el-select v-model="form.dorm_type" style="width: 100%">
+                      <el-option label="校内住宿" value="internal" />
+                      <el-option label="校外住宿" value="external" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" v-if="form.dorm_type === 'internal'">
+                  <el-form-item label="所属宿舍楼" prop="dormitory">
+                    <el-select v-model="form.dormitory" placeholder="选择楼栋" style="width: 100%">
+                      <el-option
+                        v-for="item in dormList"
+                        :key="item.id"
+                        :label="item.name"
+                        :value="item.id"
+                      />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+
+              <el-form-item 
+                :label="form.dorm_type === 'internal' ? '寝室号' : '详细住址'" 
+                prop="address"
+              >
+                <el-input 
+                  v-model="form.address" 
+                  :placeholder="form.dorm_type === 'internal' ? '例：302' : '请输入详细的校外居住地址'" 
+                />
+              </el-form-item>
+            </template>            
+
             <h3 class="group-title"><el-icon><School /></el-icon> 教育/办公信息</h3>
             <el-row :gutter="20">
               <el-col :span="12">
@@ -96,7 +132,7 @@
 
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="专业名称" prop="major">
+                <el-form-item :label="form.role === 'teacher' ? '所属部门' : '专业名称'" prop="major">
                   <el-input v-model="form.major" />
                 </el-form-item>
               </el-col>
@@ -134,15 +170,16 @@
 </template>
 
 <script setup>
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed,onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Reading, User, Lock, School } from '@element-plus/icons-vue'
+import { Reading, User, Lock, School,Location } from '@element-plus/icons-vue'
 import request from '../utils/request'
 
 const router = useRouter()
 const registerFormRef = ref(null)
 const loading = ref(false)
+const dormList = ref([]) // 存储宿舍楼列表
 
 const roleOptions = [
   { label: '学生', value: 'student' },
@@ -152,9 +189,30 @@ const roleOptions = [
 const form = reactive({
   username: '', password: '', re_password: '', role: 'student',
   student_id: '', college: '', major: '', grade: '',
-  class_name: '', education_level: 'undergraduate', gender: '男', phone: ''
+  class_name: '', education_level: 'undergraduate', gender: 'male', phone: '',
+  dorm_type: 'internal',
+  dormitory: null,
+  address: ''
 })
+const fetchDormList = async () => {
+  try {
+    const res = await request.get('/auth/users/dormitories/') 
+    
+    // 关键修复：直接打印 res 看看是不是数组
+    console.log('拦截器处理后的原始 res:', res) 
+    
+    // 兼容性写法：如果 res 是数组直接用，否则用 res.data
+    dormList.value = Array.isArray(res) ? res : res.data
+    
+    console.log('最终赋值给 dormList 的内容:', dormList.value)
+  } catch (error) {
+    console.error('获取宿舍列表失败', error)
+  }
+}
 
+onMounted(() => {
+  fetchDormList()
+})
 const validateConfirmPassword = (rule, value, callback) => {
   if (value !== form.password) callback(new Error('两次输入的密码不一致'))
   else callback()
@@ -166,7 +224,35 @@ const rules = computed(() => ({
   re_password: [{ required: true, validator: validateConfirmPassword, trigger: 'blur' }],
   student_id: [{ required: true, message: '必填', trigger: 'blur' }],
   phone: [{ required: true, pattern: /^1[3-9]\d{9}$/, message: '格式错误', trigger: 'blur' }],
-  college: [{ required: true, message: '必填', trigger: 'blur' }]
+  college: [{ required: true, message: '必填', trigger: 'blur' }],
+  // 新增：年级必填
+  grade: [{ required: true, message: '请输入当前年级', trigger: 'blur' }],
+  
+  // 新增：专业/部门必填 (Label 会随角色变，但 key 都是 major)
+  major: [{ 
+    required: true, 
+    message: form.role === 'teacher' ? '请输入所属部门' : '请输入专业名称',
+    trigger: 'blur' 
+  }],
+  
+  // 新增：学生身份时班级必填
+  class_name: [{ 
+    required: form.role === 'student', 
+    message: '请输入班级名称', 
+    trigger: 'blur' 
+  }],
+  // 住宿校验逻辑
+  dorm_type: [{ required: true, message: '请选择住宿类型', trigger: 'change' }],
+  dormitory: [{ 
+    required: form.role === 'student' && form.dorm_type === 'internal', 
+    message: '请选择宿舍楼', 
+    trigger: 'change' 
+  }],
+  address: [{ 
+    required: form.role === 'student', 
+    message: '该项为必填项', 
+    trigger: 'blur' 
+  }]
 }))
 
 const handleRegister = async () => {
@@ -177,7 +263,7 @@ const handleRegister = async () => {
       try {
         const { re_password, ...submitData } = form
         await request.post('/auth/users/', submitData)
-        ElMessage.success('注册成功！')
+        ElMessage.success('注册成功！您的登录账号为：' + form.student_id)
         router.push('/login')
       } finally {
         loading.value = false
