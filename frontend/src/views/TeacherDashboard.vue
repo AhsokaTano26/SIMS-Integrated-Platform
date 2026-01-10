@@ -463,7 +463,7 @@ const teacherInfo = ref({
 // 2. 映射显示文字（例如培养层次从英文转中文）
 const eduLevelMap = {
   'undergraduate': '本科生',
-  'postgraduate': '研究生',
+  'master': '研究生',
   'doctor': '博士生',
   'other': '其他',
   "teacher": '教师',
