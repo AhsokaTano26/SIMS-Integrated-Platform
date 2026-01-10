@@ -46,7 +46,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         # 住宿信息
         data['dorm_type'] = self.user.dorm_type
         data['dormitory'] = self.user.dormitory.id if self.user.dormitory else None
-        data['dormitory_name'] = self.user.dormitory.name if self.user.dormitory else "校外"
+        data['dormitory_name'] = self.user.dormitory.name if self.user.dormitory else None
         data['address'] = self.user.address
         
         # 其他
@@ -59,17 +59,21 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 class UserSerializer(serializers.ModelSerializer):
     # 新增：定义一个只读字段，用来获取 model 里的 avatar_url 属性
     avatar_url = serializers.ReadOnlyField()
+    dormitory_name = serializers.CharField(source='dormitory.name', read_only=True)
     class Meta:
         model = User
         fields = (
             'id', 'username', 'password', 'role', 'student_id',
             'college', 'major', 'grade', 'class_name',
             'education_level', 'gender', 'phone', 'birthday','avatar','avatar_url',
-            'dorm_type','address','dormitory'
+            'dorm_type','address','dormitory','dormitory_name',
         )
         extra_kwargs = {
             'password': {'write_only': True}, # 密码不参与序列化输出
             'avatar': {'write_only': True}, # 上传时使用，不返回在 JSON 列表里
+            'dorm_type': {'required': False, 'allow_blank': True},
+            'address': {'required': False, 'allow_blank': True},
+            'dormitory': {'required': False, 'allow_null': True},
         }
     
     def validate(self, data):
@@ -79,14 +83,15 @@ class UserSerializer(serializers.ModelSerializer):
         dorm_type = data.get('dorm_type')
         dormitory = data.get('dormitory')
         address = data.get('address')
+        role = data.get('role')
 
-        if dorm_type == 'internal':
+        if dorm_type == 'internal' and role == 'student':
             if not dormitory:
                 raise serializers.ValidationError({"dormitory": "校内住宿必须选择宿舍楼"})
             if not address:
                 raise serializers.ValidationError({"address": "校内住宿必须填写寝室号"})
         
-        elif dorm_type == 'external':
+        elif dorm_type == 'external' and role == 'student':
             if not address:
                 raise serializers.ValidationError({"address": "校外住宿必须填写详细住址"})
             # 校外住宿强制将楼栋设为空

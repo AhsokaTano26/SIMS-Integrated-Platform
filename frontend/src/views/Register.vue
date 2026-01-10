@@ -143,11 +143,11 @@
               </el-col>
             </el-row>
 
-            <el-form-item label="培养层次" prop="education_level">
+            <el-form-item :label="form.role === 'teacher' ? '学历' : '培养层次'" prop="education_level">
               <el-select v-model="form.education_level" style="width: 100%">
                 <el-option label="本科生" value="undergraduate" />
-                <el-option label="硕士研究生" value="postgraduate" />
-                <el-option label="博士研究生" value="doctoral" />
+                <el-option label="硕士研究生" value="master" />
+                <el-option label="博士研究生" value="doctor" />
               </el-select>
             </el-form-item>
           </el-form>
@@ -242,7 +242,7 @@ const rules = computed(() => ({
     trigger: 'blur' 
   }],
   // 住宿校验逻辑
-  dorm_type: [{ required: true, message: '请选择住宿类型', trigger: 'change' }],
+  dorm_type: [{ required: form.role === 'student' && form.dorm_type === 'internal', message: '请选择住宿类型', trigger: 'change' }],
   dormitory: [{ 
     required: form.role === 'student' && form.dorm_type === 'internal', 
     message: '请选择宿舍楼', 
@@ -274,23 +274,27 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
+/* 1. 基础容器与背景 */
 .register-app-container {
   height: 100vh;
   background: #f0f4f8;
-  background-image: radial-gradient(at 0% 0%, rgba(64, 158, 255, 0.15) 0, transparent 50%),
-                    radial-gradient(at 100% 100%, rgba(103, 194, 58, 0.1) 0, transparent 50%),
-                      url('/login-bg.jpg');
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(64, 158, 255, 0.15) 0, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(103, 194, 58, 0.1) 0, transparent 50%),
+    url('/login-bg.jpg');
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 20px;
 }
 
+/* 2. 玻璃态卡片主体 */
 .glass-morph-card {
   width: 900px;
   height: 700px;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px); /* 兼容 Safari */
   border-radius: 24px;
   display: flex;
   overflow: hidden;
@@ -298,174 +302,164 @@ const handleRegister = async () => {
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
-/* 左侧品牌区 */
+/* 3. 左侧品牌区 */
 .side-brand {
   width: 35%;
-  background: linear-gradient(135deg, #409EFF 0%, #3a8ee6 100%);
+  background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); /* 渐变色稍作微调更显现代 */
   padding: 40px;
   color: white;
   display: flex;
-  align-items: center;
+  flex-direction: column; /* 修正：垂直排列 */
+  justify-content: center;
   position: relative;
 }
 
 .side-brand::before {
   content: "";
   position: absolute;
-  top: -20%; left: -20%;
-  width: 150px; height: 150px;
-  background: rgba(255,255,255,0.1);
+  top: -10%; left: -10%;
+  width: 200px; height: 200px;
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 50%;
 }
 
 .brand-logo {
-  width: 80px; height: 80px;
+  width: 64px; height: 64px;
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
+  border-radius: 16px;
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 24px;
+  font-size: 32px;
 }
 
-.side-brand h1 { font-size: 28px; margin-bottom: 15px; font-weight: 700; }
-.side-brand p { font-size: 14px; opacity: 0.8; line-height: 1.6; }
+.side-brand h1 { font-size: 26px; margin-bottom: 12px; font-weight: 700; }
+.side-brand p { font-size: 14px; opacity: 0.9; line-height: 1.6; }
 
 .step-indicator {
-  margin-top: 50px;
+  margin-top: 40px;
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 .step-dot {
-  width: 30px; height: 4px;
-  background: rgba(255,255,255,0.2);
+  width: 20px; height: 4px;
+  background: rgba(255, 255, 255, 0.3);
   border-radius: 2px;
-  transition: 0.3s;
+  transition: all 0.4s ease;
 }
-.step-dot.active { background: white; width: 50px; }
+.step-dot.active { background: white; width: 40px; }
 
-/* 右侧表单区 */
+/* 4. 右侧表单区布局 */
 .form-content {
   flex: 1;
-  padding: 40px 50px;
+  padding: 40px 60px;
   display: flex;
   flex-direction: column;
+  background: white; /* 增强表单清晰度 */
 }
 
 .form-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 25px;
+}
+.form-header h2 { font-size: 24px; color: #1f2f3d; margin: 0; }
+
+/* 5. 分段控制器 (Student/Teacher 选择) 深度优化 */
+.custom-segmented {
+  --el-segmented-item-selected-bg-color: #409eff;
 }
 
-.custom-segmented {
-  /* 移除 block 后，通过 min-width 保证点击区域够大 */
-  --el-segmented-item-selected-color: #409eff;
+:deep(.el-segmented) {
+  padding: 4px;
+  border-radius: 8px;
+  background: #f4f4f5;
 }
 
 :deep(.el-segmented__item) {
-  min-width: 100px; /* 确保长文字也能完整显示 */
-  padding: 0 15px;  /* 增加左右内距 */
+  min-width: 100px;
+  padding: 0 16px !important;
+  transition: all 0.3s;
 }
 
-/* 解决文字被截断的核心样式 */
 :deep(.el-segmented__item-label) {
-  white-space: nowrap !important; /* 强制文字不换行 */
-  overflow: visible !important;   /* 允许内容撑开 */
-}
-/* 1. 确保文字在滑块上方显示，并强制文字不换行 */
-:deep(.el-segmented__item-label) {
-  position: relative;
-  z-index: 2; /* 提升文字层级，确保在蓝色滑块上方 */
   display: flex;
   justify-content: center;
   align-items: center;
-  white-space: nowrap !important; /* 严禁换行 */
-  color: inherit; /* 继承父级颜色 */
+  white-space: nowrap !important;
+  font-size: 14px;
+  z-index: 2; /* 确保文字在蓝色背景滑块之上 */
+  position: relative;
 }
 
-/* 2. 优化滑块层级 */
-:deep(.el-segmented__item-selected) {
-  z-index: 1; /* 滑块层级设为 1 */
-}
-
-/* 3. 解决选中状态下的文字颜色反馈 */
+/* 选中状态文字变为白色 */
 :deep(.el-segmented__item.is-selected .el-segmented__item-label) {
-  color: #ffffff !important; /* 选中时文字强制设为白色 */
+  color: #ffffff !important;
   font-weight: 600;
 }
 
-/* 4. 如果使用了 block 属性，增加内部左右间距，防止文字紧贴边缘 */
-:deep(.el-segmented__item) {
-  padding: 0 12px !important;
-  transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
-}
-.form-header h2 { font-size: 22px; color: #1f2f3d; }
-
+/* 6. 表单细节优化 */
 .group-title {
   font-size: 14px;
-  color: #409EFF;
+  color: #409eff;
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 25px 0 15px;
+  margin: 20px 0 15px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #f0f2f5;
+  border-bottom: 2px solid #f0f2f5;
 }
 
-/* 表单控件优化 */
+:deep(.el-form-item) {
+  margin-bottom: 18px;
+}
+
 :deep(.el-form-item__label) {
-  font-size: 13px;
   font-weight: 500;
-  color: #606266;
-  margin-bottom: 4px !important;
+  padding-bottom: 4px !important;
 }
 
 :deep(.el-input__wrapper) {
   box-shadow: none !important;
   background-color: #f5f7fa;
   border: 1px solid transparent;
-  transition: all 0.3s;
-  padding: 5px 12px;
-}
-
-:deep(.el-input__wrapper:hover) {
-  background-color: #edf2f7;
+  padding: 8px 12px;
+  border-radius: 10px;
 }
 
 :deep(.el-input__wrapper.is-focus) {
   background-color: #fff;
-  border-color: #409EFF;
+  border-color: #409eff;
   box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1) !important;
 }
 
+/* 7. 提交按钮 */
 .footer-actions {
   margin-top: auto;
   padding-top: 20px;
-}
-
-.custom-segmented :deep(.el-segmented__item) {
-  min-width: 120px;
 }
 
 .reg-submit-btn {
   width: 100%;
   height: 50px;
   border-radius: 12px;
+  font-size: 16px;
   font-weight: 600;
-  letter-spacing: 1px;
-  background: linear-gradient(90deg, #409EFF, #67C23A);
+  background: linear-gradient(90deg, #409eff, #3b82f6);
   border: none;
+  transition: all 0.3s;
 }
 
 .reg-submit-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(64, 158, 255, 0.2);
+  box-shadow: 0 8px 20px rgba(64, 158, 255, 0.3);
 }
 
-/* 隐藏滚动条但保留功能 */
-:deep(.el-scrollbar__wrap) {
-  overflow-x: hidden;
+/* 8. 滚动条美化 (针对超长表单) */
+:deep(.el-scrollbar__bar.is-vertical) {
+  width: 4px;
 }
 </style>
