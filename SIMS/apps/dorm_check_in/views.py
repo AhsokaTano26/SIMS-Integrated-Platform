@@ -198,6 +198,11 @@ class AttendanceView(APIView):
         except CheckConfig.DoesNotExist:
             return Response({"detail": "查寝配置不存在或未生效"}, status=status.HTTP_404_NOT_FOUND)
 
+        if check_config.need_material and not material:
+            return Response({
+                "detail": "本次查寝要求上传证明材料，请补充材料后重新打卡"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         # 5. 获取时间节点
         now = timezone.localtime(timezone.now())
         check_latest_dt, normal_end_dt, normal_start_dt = get_check_latest_dt(check_config)
