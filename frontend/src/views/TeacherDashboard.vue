@@ -365,7 +365,13 @@
                   <span style="color: #ef4444; font-weight: bold;">{{ formatDate(currentStudent.end_time) }}</span>
                 </el-descriptions-item>
                 <el-descriptions-item label="联系电话">
-                  {{ currentStudent.phone || '未录入' }}
+                  {{ studentDetail.phone || '未录入' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="学院专业班级">
+                  {{ studentDetail.college || '未录入' }}{{ studentDetail.grade || '未录入' }}{{ studentDetail.major || '未录入' }}{{ studentDetail.class_name || '未录入' }}
+                </el-descriptions-item>
+                <el-descriptions-item label="寝室地址">
+                  {{ studentDetail.phone || '未录入' }}
                 </el-descriptions-item>
               </el-descriptions>
 
@@ -471,6 +477,22 @@ const handleChangePassword = () => {
     ElMessage.success('密码修改成功，请下次登录时使用新密码')
   })
 }
+
+
+//学生信息
+// 存放从 /api/auth/users/{id}/ 获取的详细学生资料
+const studentDetail = ref({
+  username: '',
+  student_id: '',
+  college: '',
+  major: '',
+  class_name: '',
+  phone: '',
+  dorm_type: '',
+  dormitory: '',
+  avatar: ''
+});
+
 
 // 看板卡片配置
 const statsList = ref([
@@ -584,10 +606,24 @@ const logout = () => {
 // 图表初始化
 const trendChartRef = ref(null)
 const reasonChartRef = ref(null)
-const handleClick = (row) => {
-  currentStudent.value = row // 将当前行数据存入变量
-  detailVisible.value = true // 打开弹窗
-}
+const handleClick = async (row) => {
+  currentStudent.value = row; // 保存右图的请假记录数据
+
+  try {
+    // 1. 使用右图中的 student 字段（即用户ID，例如图中的 8）调用接口
+    // 注意：请根据你实际的请求工具调整路径
+    const res = await request.get(`/auth/users/${row.student}/`);
+
+    // 2. 将左图结构的数据存入 studentDetail
+    studentDetail.value = res;
+
+    // 3. 数据加载完成后打开弹窗
+    detailVisible.value = true;
+  } catch (error) {
+    ElMessage.error("获取学生详细档案失败");
+    console.error(error);
+  }
+};
 const initCharts = () => {
   if (!trendChartRef.value) return
   // 模拟图表数据，实际可接后端
