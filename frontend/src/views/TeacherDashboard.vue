@@ -3,8 +3,10 @@
     <el-container class="layout-container">
       <el-aside width="240px" class="aside">
         <div class="logo-box">
-          <div class="logo-circle">🛡️</div>
-          <span class="logo-text">校园请假管理</span>
+          <div class="logo-circle">
+            <el-icon><Management /></el-icon>
+          </div>
+          <span class="logo-text">智慧管理教师端</span>
         </div>
 
         <el-menu
@@ -24,10 +26,19 @@
             <span>审批中心</span>
             <div v-if="pendingCount > 0" class="menu-badge">{{ pendingCount }}</div>
           </el-menu-item>
-          <el-menu-item index="attendance">
+          <el-menu-item index="holiday">
             <el-icon><Warning /></el-icon>
             <span>销假监控</span>
             <div v-if="overdueCount > 0" class="menu-badge danger">{{ overdueCount }}</div>
+          </el-menu-item>
+          <el-menu-item index="attendance">
+            <el-icon><Position /></el-icon>
+            <span>打卡管理</span>
+            <div v-if="overdueCount > 0" class="menu-badge danger">{{ overdueCount }}</div>
+          </el-menu-item>
+          <el-menu-item index="personal">
+            <el-icon><House /></el-icon>
+            <span>个人信息</span>
           </el-menu-item>
         </el-menu>
       </el-aside>
@@ -184,7 +195,7 @@
             </el-table>
           </el-card>
 
-          <el-card v-else-if="activeMenu === 'attendance'" class="fade-in content-card" shadow="never">
+          <el-card v-else-if="activeMenu === 'holiday'" class="fade-in content-card" shadow="never">
             <template #header>
               <div class="flex-between">
                 <div class="title-with-icon">
@@ -203,25 +214,166 @@
               show-icon
               class="mb-4"
             />
-            <el-empty v-else description="暂无逾期记录，学生们都很守时 ~" />
+            <el-empty v-else description="暂无逾期记录" />
 
             <el-table v-if="overdueList.length > 0" :data="overdueList" border stripe>
               <el-table-column prop="student_id_display" label="学号" width="100" />
               <el-table-column prop="student_name" label="姓名" width="120" />
-              <el-table-column prop="reason" label="原请假理由" show-overflow-tooltip />
+              <el-table-column prop="reason" label="请假理由" show-overflow-tooltip />
+              <el-table-column prop="leave_for" label="前往地点" show-overflow-tooltip />
               <el-table-column label="应归时间" width="200">
                 <template #default="scope">
                   <span class="text-danger font-bold">{{ formatDate(scope.row.end_time) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="当前状态">
-                <template #default="scope">
-                  <el-tag type="danger" effect="dark">逾期未归</el-tag>
-                </template>
-              </el-table-column>
+                <el-table-column label="当前状态">
+                  <template #default="scope">
+                    <el-button type="danger" effect="dark" @click="handleClick(scope.row)">
+                      逾期未归
+                    </el-button>
+                  </template>
+                </el-table-column>
             </el-table>
           </el-card>
 
+          <el-card v-else-if="activeMenu === 'attendance'" class="fade-in content-card" shadow="never">
+            <template #header>
+              <div class="flex-between">
+                <div class="title-with-icon">
+                  <el-icon color="#ef4444"><WarningFilled /></el-icon>
+                  <span>严重逾期名单</span>
+                </div>
+                <el-tag type="danger" effect="dark" round>共 {{ overdueCount }} 人</el-tag>
+              </div>
+            </template>
+          </el-card>
+
+
+            <el-card v-else-if="activeMenu === 'personal'" class="fade-in content-card personal-container" shadow="never">
+            <el-row :gutter="40">
+              <el-col :span="8">
+                <div class="profile-sidebar">
+                  <div class="avatar-upload">
+                    <el-avatar :size="100" style="background: #4F46E5; font-size: 40px;">
+                      {{ teacherInfo.username?.[0] }}
+                    </el-avatar>
+                    <div class="teacher-name-tag">
+                      <h2>{{ teacherInfo.username }}</h2>
+                      <el-tag size="small" effect="plain">{{ eduLevelMap[teacherInfo.role] || '任课教师' }}</el-tag>
+                    </div>
+                  </div>
+
+                  <div class="personal-stats">
+                    <div class="p-stat-item">
+                      <span class="p-stat-val">{{ pendingCount }}</span>
+                      <span class="p-stat-lab">待我审批</span>
+                    </div>
+                    <el-divider direction="vertical" />
+                    <div class="p-stat-item">
+                      <span class="p-stat-val">{{ overdueCount }}</span>
+                      <span class="p-stat-lab">负责逾期</span>
+                    </div>
+                  </div>
+
+                  <el-divider />
+
+                  <div class="info-list">
+                    <div class="info-item">
+                      <el-icon><Postcard /></el-icon>
+                      <span class="label">教工号：</span>
+                      <span class="value">{{ teacherInfo.student_id || '2024001' }}</span>
+                    </div>
+                    <div class="info-item">
+                      <el-icon><School /></el-icon>
+                      <span class="label">所属部门：</span>
+                      <span class="value">{{ teacherInfo.department || '学生工作处' }}</span>
+                    </div>
+                    <div class="info-item">
+                      <el-icon><OfficeBuilding /></el-icon>
+                      <span class="label">所属学院：</span>
+                      <span class="value">{{ teacherInfo.college || '未知' }}</span>
+                    </div>
+                    <div class="info-item">
+                      <el-icon><Message /></el-icon>
+                      <span class="label">联系邮箱：</span>
+                      <span class="value">{{ teacherInfo.email || '未绑定' }}</span>
+                    </div>
+                  </div>
+                </div>
+              </el-col>
+
+              <el-col :span="16">
+                <el-tabs v-model="personalActiveTab">
+                  <el-tab-pane label="基本设置" name="info">
+                    <el-form :model="teacherInfo" label-position="top" class="personal-form">
+                      <el-row :gutter="20">
+                        <el-col :span="12">
+                          <el-form-item label="姓名">
+                            <el-input v-model="teacherInfo.username" />
+                          </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                          <el-form-item label="手机号码">
+                            <el-input v-model="teacherInfo.phone" />
+                          </el-form-item>
+                        </el-col>
+                      </el-row>
+                      <el-form-item label="个人简介">
+                        <el-input type="textarea" :rows="3" v-model="teacherInfo.bio" placeholder="请填写个人简介..." />
+                      </el-form-item>
+                      <el-button type="primary" @click="updateProfile">保存更改</el-button>
+                    </el-form>
+                  </el-tab-pane>
+
+                  <el-tab-pane label="安全设置" name="security">
+                    <div class="security-list">
+                      <div class="security-item">
+                        <div class="sec-info">
+                          <div class="sec-title">账户密码</div>
+                          <div class="sec-desc">定期更换密码可以保护您的账号安全</div>
+                        </div>
+                        <el-button link type="primary" @click="handleChangePassword">重置密码</el-button>
+                      </div>
+                    </div>
+                  </el-tab-pane>
+                </el-tabs>
+              </el-col>
+            </el-row>
+          </el-card>
+
+          <el-dialog
+            v-model="detailVisible"
+            title="逾期学生详细档案"
+            width="500px"
+            center
+            destroy-on-close
+          >
+            <div v-if="currentStudent" class="student-detail-modal">
+              <div class="detail-header">
+                <el-avatar :size="64" style="background: #fef2f2; color: #ef4444; font-size: 24px;">
+                  {{ currentStudent.student_name?.[0] }}
+                </el-avatar>
+                <h3>{{ currentStudent.student_name }}</h3>
+                <el-tag type="danger">学号：{{ currentStudent.student_id_display }}</el-tag>
+              </div>
+
+              <el-descriptions :column="1" border class="mt-4">
+                <el-descriptions-item label="请假事由">{{ currentStudent.reason }}</el-descriptions-item>
+                <el-descriptions-item label="前往地点">{{ currentStudent.leave_for }}</el-descriptions-item>
+                <el-descriptions-item label="离校时间">{{ formatDate(currentStudent.start_time) }}</el-descriptions-item>
+                <el-descriptions-item label="应归时间">
+                  <span style="color: #ef4444; font-weight: bold;">{{ formatDate(currentStudent.end_time) }}</span>
+                </el-descriptions-item>
+                <el-descriptions-item label="联系电话">
+                  {{ currentStudent.phone || '未录入' }}
+                </el-descriptions-item>
+              </el-descriptions>
+
+              <div class="detail-footer">
+                <el-button @click="detailVisible = false">关闭窗口</el-button>
+              </div>
+            </div>
+          </el-dialog>
         </el-main>
       </el-container>
     </el-container>
@@ -232,7 +384,19 @@
 import { ref, onMounted, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { DataBoard, Postcard, Warning, WarningFilled, ArrowDown, Timer, Right, Refresh } from '@element-plus/icons-vue'
+import {
+  DataBoard,
+  OfficeBuilding,
+  Postcard,
+  Warning,
+  WarningFilled,
+  ArrowDown,
+  Timer,
+  Right,
+  Refresh,
+  Message,
+  Management, Position, House, Comment, School
+} from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import request from '../utils/request'
 
@@ -249,6 +413,64 @@ const filterStatus = ref('pending')
 // 统计数据 (用于 Badge 和 卡片)
 const pendingCount = ref(0)
 const overdueCount = ref(0)
+const detailVisible = ref(false)
+const currentStudent = ref(null)
+
+// 个人中心逻辑
+const personalActiveTab = ref('info')
+// 1. 初始化响应式数据，字段名与 API 返回的 JSON 保持一致
+const teacherInfo = ref({
+  id: null,
+  username: "",
+  role: "",
+  student_id: "",
+  college: "",
+  education_level: "",
+  gender: "unknown",
+  phone: "",
+  dorm_type: "internal",
+  address: ""
+});
+
+// 2. 映射显示文字（例如培养层次从英文转中文）
+const eduLevelMap = {
+  'undergraduate': '本科生',
+  'postgraduate': '研究生',
+  'doctor': '博士生',
+  'other': '其他',
+  "teacher": '教师',
+};
+
+// 3. 获取数据的函数
+const fetchProfile = async () => {
+  try {
+    // 接入你提供的 API
+    const res = await request.get('/auth/users/me/');
+    teacherInfo.value = res;
+
+    // 同步更新顶部 Header 显示的名字
+    teacherName.value = res.username;
+    // 可选：更新缓存
+    localStorage.setItem('user_info', JSON.stringify(res));
+  } catch (error) {
+    console.error("获取个人信息失败:", error);
+    ElMessage.error("用户信息加载失败");
+  }
+};
+const updateProfile = async () => {
+  // 模拟保存逻辑
+  ElMessage.success('个人资料更新成功')
+}
+
+const handleChangePassword = () => {
+  ElMessageBox.prompt('请输入新密码', '修改密码', {
+    confirmButtonText: '提交',
+    cancelButtonText: '取消',
+    inputType: 'password'
+  }).then(() => {
+    ElMessage.success('密码修改成功，请下次登录时使用新密码')
+  })
+}
 
 // 看板卡片配置
 const statsList = ref([
@@ -267,7 +489,7 @@ const statusMap = {
 }
 
 const menuTitle = computed(() => {
-  const map = { overview: '数据看板', leaves: '请假审批', attendance: '销假监控' }
+  const map = { overview: '数据看板', leaves: '请假审批', holiday: '销假监控' }
   return map[activeMenu.value]
 })
 
@@ -318,7 +540,7 @@ const fetchLeaveData = async () => {
 const handleApprove = (row, resultStatus) => {
   const actionText = { approved: '通过', rejected: '驳回', returned: '退回修改' }[resultStatus]
 
-  ElMessageBox.prompt(`请填写审批意见（可选）`, `确认${actionText}`, {
+  ElMessageBox.prompt(`请填写审批意见`, `确认${actionText}`, {
     confirmButtonText: '提交',
     cancelButtonText: '取消',
     inputType: 'textarea',
@@ -335,9 +557,14 @@ const handleApprove = (row, resultStatus) => {
 
 const handleMenuSelect = (index) => {
   activeMenu.value = index
-  if (index === 'leaves') fetchLeaveData()
-  else if (index === 'attendance') fetchDashboardStats()
-  else if (index === 'overview') {
+  if (index === 'leaves') {
+    fetchLeaveData()
+  } else if (index === 'holiday') {
+    fetchDashboardStats()
+  } else if (index === 'personal') {
+    // 关键补全：点击个人中心菜单时拉取后端数据
+    fetchProfile()
+  } else if (index === 'overview') {
     fetchDashboardStats()
     nextTick(() => initCharts())
   }
@@ -357,7 +584,10 @@ const logout = () => {
 // 图表初始化
 const trendChartRef = ref(null)
 const reasonChartRef = ref(null)
-
+const handleClick = (row) => {
+  currentStudent.value = row // 将当前行数据存入变量
+  detailVisible.value = true // 打开弹窗
+}
 const initCharts = () => {
   if (!trendChartRef.value) return
   // 模拟图表数据，实际可接后端
@@ -455,4 +685,123 @@ onMounted(() => {
 .text-danger { color: #ef4444; }
 .text-xs { font-size: 12px; }
 .mb-4 { margin-bottom: 16px; }
+.student-detail-modal {
+  padding: 10px;
+}
+.detail-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.detail-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #1f2937;
+}
+.mt-4 {
+  margin-top: 16px;
+}
+.detail-footer {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+/* 个人中心样式 */
+.personal-container {
+  padding: 40px !important;
+}
+
+.profile-sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-right: 1px solid #f3f4f6;
+  padding-right: 20px;
+}
+
+.teacher-name-tag {
+  text-align: center;
+  margin-top: 16px;
+}
+
+.teacher-name-tag h2 {
+  margin: 0 0 8px 0;
+  color: #111827;
+}
+
+.personal-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  width: 100%;
+  margin-top: 24px;
+}
+
+.p-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.p-stat-val {
+  font-size: 20px;
+  font-weight: 700;
+  color: #4F46E5;
+}
+
+.p-stat-lab {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.info-list {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.info-item .el-icon {
+  color: #9ca3af;
+}
+
+.info-item .label {
+  color: #9ca3af;
+  width: 70px;
+}
+
+.security-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.sec-title {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.sec-desc {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.personal-form {
+  margin-top: 20px;
+  max-width: 600px;
+}
 </style>

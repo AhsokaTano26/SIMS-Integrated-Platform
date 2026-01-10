@@ -1,7 +1,9 @@
 <template>
-  <el-config-provider :locale="zhCn">
-    <router-view />
-  </el-config-provider>
+  <router-view v-slot="{ Component, route }">
+    <transition name="fade-transform" mode="out-in">
+      <component :is="Component" :key="route.path" />
+    </transition>
+  </router-view>
 </template>
 
 <script setup>
@@ -15,5 +17,19 @@ html, body, #app {
   height: 100%;
   margin: 0;
   padding: 0;
+}
+.fade-transform-enter-active,
+.fade-transform-leave-active {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-transform-enter-from {
+  opacity: 0;
+  transform: translateX(-15px);
+}
+
+.fade-transform-leave-to {
+  opacity: 0;
+  transform: translateX(15px);
 }
 </style>
