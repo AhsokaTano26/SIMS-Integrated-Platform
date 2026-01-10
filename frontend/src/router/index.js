@@ -1,7 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Login from '../views/Login.vue';
-// 1. 引入 NotFound 组件
+import NProgress from 'nprogress'
+import 'nprogress/nprogress.css'
 import NotFound from '../views/NotFound.vue';
+
+NProgress.configure({ showSpinner: false, ease: 'ease', speed: 500 });
 
 const routes = [
   {
@@ -57,6 +60,7 @@ const router = createRouter({
 
 // 路由守卫：校验登录状态
 router.beforeEach((to, from, next) => {
+  NProgress.start()
   const token = localStorage.getItem('access_token');
   const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
 
@@ -69,5 +73,9 @@ router.beforeEach((to, from, next) => {
     next();
   }
 });
+
+router.afterEach(() => {
+  NProgress.done() // 结束加载
+})
 
 export default router;

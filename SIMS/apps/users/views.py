@@ -3,8 +3,9 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
-from .serializers import UserSerializer
+from .serializers import UserSerializer,DormitorySerializer,DormitorySimpleSerializer
 from .serializers import MyTokenObtainPairSerializer
+from .models import Dormitory
 
 # 使用自定义的序列化器
 class MyTokenObtainPairView(TokenObtainPairView):
@@ -27,7 +28,7 @@ class UserViewSet(viewsets.ModelViewSet):
         # 增加对 me 接口的放行（只需登录）
         #已登录用户可以查看/修改自己的信息 (me, partial_update, retrieve)
         # partial_update 对应前端的 request.patch
-        if self.action in ['me', 'partial_update']:
+        if self.action in ['me', 'partial_update', 'retrieve']:
             return [permissions.IsAuthenticated()]
 
         if self.action in allow_any_actions:
@@ -35,6 +36,20 @@ class UserViewSet(viewsets.ModelViewSet):
             
         # 其他操作（如删除用户、列表查看、管理员重置）：仅限已登录的管理员
         return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        # 权限逻辑：
+        # 1. 如果是管理员 (is_staff) 或 角色是老师 (role == 'teacher') -> 允许查看
+        # 2. 如果是普通学生 -> 只能查看自己的 ID
+        is_teacher = getattr(request.user, 'role', None) == 'teacher'  # 假设字段名为 role
+
+        if request.user.is_staff or is_teacher or instance.id == request.user.id:
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data)
+
+        return Response({"detail": "你没有权限查看其他用户信息"}, status=status.HTTP_403_FORBIDDEN)
 
     def perform_update(self, serializer):
         # 如果不是管理员，且试图修改的不是自己的 ID
@@ -64,3 +79,29 @@ class UserViewSet(viewsets.ModelViewSet):
             "detail": f"用户 {user.username} 的密码已重置为: {new_pwd}",
             "username": user.username
         }, status=status.HTTP_200_OK)
+        
+class DormitoryViewSet(viewsets.ModelViewSet):
+    queryset = Dormitory.objects.all()
+
+    def get_serializer_class(self):
+        # 1. 如果是未登录用户（正在注册的学生），使用简化版
+        if self.request.user.is_anonymous:
+            return DormitorySimpleSerializer
+        
+        # 2. 如果已登录，根据角色判断
+        user = self.request.user
+        # 判断是否为老师或管理员
+        is_staff_or_teacher = user.is_staff or getattr(user, 'role', None) in ['teacher', 'counselor', 'admin']
+        
+        if is_staff_or_teacher:
+            return DormitorySerializer # 返回完整信息（含经纬度）
+        
+        return DormitorySimpleSerializer # 普通学生仅返回名字
+
+    def get_permissions(self):
+        # 允许任何人“读取”列表（注册时调用 list 接口）
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        
+        # 增加、修改、删除宿舍楼信息：仅限管理员 (is_staff)
+        return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
