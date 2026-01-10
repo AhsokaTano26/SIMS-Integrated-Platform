@@ -90,3 +90,15 @@ class UserSerializer(serializers.ModelSerializer):
         # 使用 create_user 以确保密码被哈希加密
         user = User.objects.create_user(**validated_data)
         return user
+
+# 完整版（老师和管理员用）
+class DormitorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Dormitory
+        fields = '__all__'
+
+# 简化版（学生注册或查看用）
+class DormitorySimpleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Dormitory
+        fields = ['id', 'name'] # 仅暴露 ID 和 名称，隐藏坐标等敏感信息

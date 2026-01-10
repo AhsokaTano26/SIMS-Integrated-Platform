@@ -3,8 +3,9 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
-from .serializers import UserSerializer
+from .serializers import UserSerializer,DormitorySerializer,DormitorySimpleSerializer
 from .serializers import MyTokenObtainPairSerializer
+from .models import Dormitory
 
 # 使用自定义的序列化器
 class MyTokenObtainPairView(TokenObtainPairView):
@@ -78,3 +79,29 @@ class UserViewSet(viewsets.ModelViewSet):
             "detail": f"用户 {user.username} 的密码已重置为: {new_pwd}",
             "username": user.username
         }, status=status.HTTP_200_OK)
+        
+class DormitoryViewSet(viewsets.ModelViewSet):
+    queryset = Dormitory.objects.all()
+
+    def get_serializer_class(self):
+        # 1. 如果是未登录用户（正在注册的学生），使用简化版
+        if self.request.user.is_anonymous:
+            return DormitorySimpleSerializer
+        
+        # 2. 如果已登录，根据角色判断
+        user = self.request.user
+        # 判断是否为老师或管理员
+        is_staff_or_teacher = user.is_staff or getattr(user, 'role', None) in ['teacher', 'counselor', 'admin']
+        
+        if is_staff_or_teacher:
+            return DormitorySerializer # 返回完整信息（含经纬度）
+        
+        return DormitorySimpleSerializer # 普通学生仅返回名字
+
+    def get_permissions(self):
+        # 允许任何人“读取”列表（注册时调用 list 接口）
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        
+        # 增加、修改、删除宿舍楼信息：仅限管理员 (is_staff)
+        return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
