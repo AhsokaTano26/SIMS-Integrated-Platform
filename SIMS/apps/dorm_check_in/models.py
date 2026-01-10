@@ -22,8 +22,6 @@ class CheckConfig(models.Model):
     # 其他配置
     valid_range = models.IntegerField(default=500, verbose_name="打卡有效范围（米）")
     need_material = models.BooleanField(default=False, verbose_name="是否需要上传证明材料")
-    notify_normal_after_normal_end = models.BooleanField(default=True, verbose_name="正常结束后是否通知")
-    notify_late_after_late_end = models.BooleanField(default=False, verbose_name="晚归结束后是否通知")
     is_active = models.BooleanField(default=True, verbose_name="是否生效")
 
     created_by = models.ForeignKey(
@@ -53,6 +51,35 @@ class CheckConfig(models.Model):
         start_str = timezone.localtime(self.normal_start).strftime("%Y-%m-%d %H:%M")
         return f"{self.config_name} ({start_str} 开始)"
 
+    @property
+    def current_status(self):
+        """
+        动态判定状态：
+        1. 当前 < 开始 = 未开始
+        2. 当前 > 截止 = 已结束
+        3. 其余 = 进行中
+        """
+        now = timezone.now()  # 建议使用 timezone.now() 保持 UTC/时区一致
+
+        # 确定最终截止时间点
+        final_deadline = self.late_end if self.late_end else self.normal_end
+
+        if now < self.normal_start:
+            return "not_started"
+        elif now > final_deadline:
+            return "ended"
+        else:
+            return "in_progress"
+
+    @property
+    def status_display(self):
+        """返回状态的中文描述，方便前端直接显示"""
+        mapping = {
+            "not_started": "未开始",
+            "in_progress": "进行中",
+            "ended": "已结束"
+        }
+        return mapping.get(self.current_status, "未知")
 
 class Attendance(models.Model):
     """打卡记录表"""
