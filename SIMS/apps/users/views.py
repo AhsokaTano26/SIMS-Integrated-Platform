@@ -27,7 +27,7 @@ class UserViewSet(viewsets.ModelViewSet):
         # 增加对 me 接口的放行（只需登录）
         #已登录用户可以查看/修改自己的信息 (me, partial_update, retrieve)
         # partial_update 对应前端的 request.patch
-        if self.action in ['me', 'partial_update']:
+        if self.action in ['me', 'partial_update', 'retrieve']:
             return [permissions.IsAuthenticated()]
 
         if self.action in allow_any_actions:
@@ -35,6 +35,20 @@ class UserViewSet(viewsets.ModelViewSet):
             
         # 其他操作（如删除用户、列表查看、管理员重置）：仅限已登录的管理员
         return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        # 权限逻辑：
+        # 1. 如果是管理员 (is_staff) 或 角色是老师 (role == 'teacher') -> 允许查看
+        # 2. 如果是普通学生 -> 只能查看自己的 ID
+        is_teacher = getattr(request.user, 'role', None) == 'teacher'  # 假设字段名为 role
+
+        if request.user.is_staff or is_teacher or instance.id == request.user.id:
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data)
+
+        return Response({"detail": "你没有权限查看其他用户信息"}, status=status.HTTP_403_FORBIDDEN)
 
     def perform_update(self, serializer):
         # 如果不是管理员，且试图修改的不是自己的 ID
