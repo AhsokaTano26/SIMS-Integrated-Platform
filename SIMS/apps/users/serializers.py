@@ -49,12 +49,14 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 
 class UserSerializer(serializers.ModelSerializer):
+    # 新增：定义一个只读字段，用来获取 model 里的 avatar_url 属性
+    avatar_url = serializers.ReadOnlyField()
     class Meta:
         model = User
         fields = (
             'id', 'username', 'password', 'role', 'student_id',
             'college', 'major', 'grade', 'class_name',
-            'education_level', 'gender', 'phone', 'birthday',
+            'education_level', 'gender', 'phone', 'birthday','avatar','avatar_url',
             'dorm_type', 'address'
         )
         extra_kwargs = {

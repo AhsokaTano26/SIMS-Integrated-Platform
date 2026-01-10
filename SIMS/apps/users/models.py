@@ -130,13 +130,7 @@ class User(AbstractUser):
         if self.avatar and hasattr(self.avatar, 'url'):
             return self.avatar.url
         
-        # 默认头像逻辑：假设你在 media/defaults/ 下放了对应的图片
-        if self.gender == 'male':
-            return '/media/defaults/male.png'
-        elif self.gender == 'female':
-            return '/media/defaults/female.png'
-        else:
-            return '/media/defaults/unknown.png'
+        return ""
 
     class Meta:
         verbose_name = '用户信息'
