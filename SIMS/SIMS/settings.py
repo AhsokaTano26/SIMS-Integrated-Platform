@@ -130,7 +130,7 @@ SIMPLE_JWT = {
 
     # 每次刷新 Access Token 时，是否也刷新 Refresh Token 的有效期？
     # 如果设为 True，用户只要活跃，Refresh Token 就会一直滚动更新，不会过期
-    'ROTATE_REFRESH_TOKENS': False,
+    'ROTATE_REFRESH_TOKENS': True,
 
     # 只有当 ROTATE_REFRESH_TOKENS 为 True 时有效
     # 如果设为 True，旧的 Refresh Token 会被加入黑名单（需配置黑名单 App）
