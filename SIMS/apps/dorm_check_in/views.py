@@ -150,7 +150,7 @@ class AttendanceView(APIView):
 
         if current_status == 'not_started':
             return Response({
-                "detail": f"打卡尚未开始，开始时间：{config.normal_start.strftime('%H:%M')}",
+                "detail": f"打卡尚未开始",
                 "task_status": "not_started"
             }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -186,6 +186,8 @@ class AttendanceView(APIView):
         dist = haversine(lng, lat, float(user.dormitory.longitude), float(user.dormitory.latitude))
 
         if dist > config.valid_range:
+            print("lng",lng)
+            print("lat",lat)
             return Response({"detail": f"位置超限({round(dist)}米)"}, status=status.HTTP_400_BAD_REQUEST)
 
         if config.need_material and not request.FILES.get("material"):
