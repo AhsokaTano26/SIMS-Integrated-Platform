@@ -245,12 +245,12 @@
       style="width: 280px"
       @change="handleMonitorTaskChange"
     >
-      <el-option
-        v-for="item in taskList"
-        :key="item.config_id"
-        :label="`${item.config_name} (${item.check_date})`"
-        :value="item.config_id"
-      />
+<el-option
+  v-for="item in taskList"
+  :key="item.config_id"
+  :label="`${item.config_name} (${displayBeijingTime(item.normal_start)})`"
+  :value="item.config_id"
+/>
     </el-select>
 
     <el-tag v-if="currentMonitorId" type="info" effect="plain">
@@ -306,23 +306,29 @@
   <el-table :data="taskList" style="width: 100%">
     <el-table-column prop="config_name" label="任务名称" min-width="120" />
 
-    <el-table-column label="起止时间 (东八区)" min-width="240">
-      <template #default="scope">
-        <div style="font-size: 13px; line-height: 1.5;">
-          <div><el-tag size="small">始</el-tag> {{ scope.row.normal_start }}</div>
-          <div><el-tag size="small" type="danger">终</el-tag> {{ scope.row.normal_end }}</div>
-        </div>
-      </template>
-    </el-table-column>
+    <el-table-column label="有效时间" min-width="200">
+  <template #default="scope">
+    <div>{{ scope.row.normal_start }} 至 {{ scope.row.normal_end }}</div>
+  </template>
+</el-table-column>
 
-    <el-table-column label="晚归截止" min-width="180">
-      <template #default="scope">
-        <span v-if="scope.row.late_end" style="font-size: 13px; color: #e6a23c;">
-           {{ scope.row.late_end }}
-        </span>
-        <span v-else>--</span>
-      </template>
-    </el-table-column>
+<el-table-column label="有效时间 (北京时间)" min-width="240">
+  <template #default="scope">
+    <div style="font-size: 13px;">
+      <div><span style="color:#909399">始：</span>{{ displayBeijingTime(scope.row.normal_start) }}</div>
+      <div><span style="color:#909399">终：</span>{{ displayBeijingTime(scope.row.normal_end) }}</div>
+    </div>
+  </template>
+</el-table-column>
+
+    <el-table-column label="晚归截止" min-width="150">
+  <template #default="scope">
+    <span v-if="scope.row.late_end" style="color: #e6a23c;">
+      {{ displayBeijingTime(scope.row.late_end) }}
+    </span>
+    <span v-else>--</span>
+  </template>
+</el-table-column>
 
     <el-table-column label="状态" width="100">
       <template #default="scope">
@@ -901,6 +907,27 @@ const formatDateStr = (date) => {
 }
 
 // ---------------------- API 交互方法 ----------------------
+
+const displayBeijingTime = (timeStr) => {
+  if (!timeStr) return '--'
+
+  // 1. 解析原始字符串
+  // 注意：如果 timeStr 是 "2026-01-11 13:00"，Date 会根据浏览器时区解析
+  const date = new Date(timeStr.replace(/-/g, '/')) // 兼容性更好的解析方式
+
+  // 2. 增加 8 小时的毫秒数 (8 * 60 * 60 * 1000)
+  const offsetTime = new Date(date.getTime() + 8 * 60 * 60 * 1000)
+
+  // 3. 格式化回 YYYY-MM-DD HH:mm
+  const y = offsetTime.getFullYear()
+  const m = String(offsetTime.getMonth() + 1).padStart(2, '0')
+  const d = String(offsetTime.getDate()).padStart(2, '0')
+  const h = String(offsetTime.getHours()).padStart(2, '0')
+  const min = String(offsetTime.getMinutes()).padStart(2, '0')
+
+  return `${y}-${m}-${d} ${h}:${min}`
+}
+
 
 // 3. 获取查寝任务列表 (GET /api/dorm_check/config/)
 const fetchAttendanceTasks = async () => {
