@@ -303,7 +303,7 @@
     </el-radio-group>
   </div>
 
-  <el-table :data="taskList" style="width: 100%">
+  <el-table :data="filteredTaskList" style="width: 100%">
     <el-table-column prop="config_name" label="任务名称" min-width="120" />
 
     <el-table-column label="有效时间" min-width="200">
@@ -581,6 +581,7 @@ import {
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import request from '../utils/request'
+
 
 const router = useRouter()
 const activeMenu = ref('overview')
@@ -910,24 +911,34 @@ const formatDateStr = (date) => {
 
 const displayBeijingTime = (timeStr) => {
   if (!timeStr) return '--'
-
-  // 1. 解析原始字符串
-  // 注意：如果 timeStr 是 "2026-01-11 13:00"，Date 会根据浏览器时区解析
-  const date = new Date(timeStr.replace(/-/g, '/')) // 兼容性更好的解析方式
-
-  // 2. 增加 8 小时的毫秒数 (8 * 60 * 60 * 1000)
+  const date = new Date(timeStr.replace(/-/g, '/'))
   const offsetTime = new Date(date.getTime() + 8 * 60 * 60 * 1000)
-
-  // 3. 格式化回 YYYY-MM-DD HH:mm
   const y = offsetTime.getFullYear()
   const m = String(offsetTime.getMonth() + 1).padStart(2, '0')
   const d = String(offsetTime.getDate()).padStart(2, '0')
   const h = String(offsetTime.getHours()).padStart(2, '0')
   const min = String(offsetTime.getMinutes()).padStart(2, '0')
-
   return `${y}-${m}-${d} ${h}:${min}`
 }
 
+
+// 核心修改：根据 taskFilter 的值过滤列表
+const filteredTaskList = computed(() => {
+  let list = taskList.value
+
+  // 如果选了“进行中”，则过滤出 status 为 'in_progress' 的任务
+  if (taskFilter.value === 'active') {
+    list = list.filter(item => item.status === 'in_progress')
+  }
+
+  // 返回处理后的数据（包含转换后的显示时间）
+  return list.map(item => ({
+    ...item,
+    display_start: displayBeijingTime(item.normal_start),
+    display_end: displayBeijingTime(item.normal_end),
+    display_late: displayBeijingTime(item.late_end)
+  }))
+})
 
 // 3. 获取查寝任务列表 (GET /api/dorm_check/config/)
 const fetchAttendanceTasks = async () => {
