@@ -70,7 +70,6 @@ npm install
 npm run dev
 ```
 ## 📸 System Preview / 系统预览
-(建议在此处插入系统截图 / Insert screenshots here)
 
 Dashboard - Attendance statistics overview.
 
