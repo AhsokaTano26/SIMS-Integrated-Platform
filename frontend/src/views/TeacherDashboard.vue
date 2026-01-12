@@ -294,7 +294,7 @@
   </el-table>
 </el-tab-pane>
 
-              <el-tab-pane label="打卡任务管理" name="tasks">
+<el-tab-pane label="打卡任务管理" name="tasks">
   <div class="flex-between mb-4">
     <el-button type="primary" icon="Plus" @click="showCreateTask = true">发布新查寝</el-button>
     <el-radio-group v-model="taskFilter" size="small">
@@ -305,17 +305,25 @@
 
   <el-table :data="taskList" style="width: 100%">
     <el-table-column prop="config_name" label="任务名称" min-width="120" />
-    <el-table-column label="日期" prop="check_date" width="110" />
-    <el-table-column label="有效时间段" min-width="200">
+
+    <el-table-column label="起止时间 (东八区)" min-width="240">
       <template #default="scope">
-        <div style="font-size: 13px;">
-          <div><el-tag size="small" type="success">正常</el-tag> {{ scope.row.normal_start }} ~ {{ scope.row.normal_end.split(' ')[1] }}</div>
-          <div v-if="scope.row.late_end" style="margin-top:4px; color:#e6a23c;">
-             <el-tag size="small" type="warning">晚归</el-tag> 截止于 {{ scope.row.late_end.split(' ')[1] }}
-          </div>
+        <div style="font-size: 13px; line-height: 1.5;">
+          <div><el-tag size="small">始</el-tag> {{ scope.row.normal_start }}</div>
+          <div><el-tag size="small" type="danger">终</el-tag> {{ scope.row.normal_end }}</div>
         </div>
       </template>
     </el-table-column>
+
+    <el-table-column label="晚归截止" min-width="180">
+      <template #default="scope">
+        <span v-if="scope.row.late_end" style="font-size: 13px; color: #e6a23c;">
+           {{ scope.row.late_end }}
+        </span>
+        <span v-else>--</span>
+      </template>
+    </el-table-column>
+
     <el-table-column label="状态" width="100">
       <template #default="scope">
         <el-tag :type="scope.row.status === 'in_progress' ? 'success' : 'info'">
@@ -323,6 +331,7 @@
         </el-tag>
       </template>
     </el-table-column>
+
     <el-table-column label="操作" width="120">
       <template #default="scope">
         <el-button link type="primary" @click="handleMonitorTaskChange(scope.row.config_id); attendanceTab='monitor'">
@@ -334,31 +343,46 @@
 </el-tab-pane>
             </el-tabs>
 
-            <el-dialog v-model="showCreateTask" title="发布新查寝任务" width="450px">
+<el-dialog v-model="showCreateTask" title="发布新查寝任务" width="500px">
   <el-form :model="taskForm" label-position="top">
     <el-form-item label="任务标题">
-      <el-input v-model="taskForm.title" placeholder="如：1号楼晚点名" />
+      <el-input v-model="taskForm.title" placeholder="如：1月11日全员晚点名" />
     </el-form-item>
-    <el-form-item label="正常打卡时间范围">
-      <el-time-picker
+
+    <el-form-item label="正常打卡时间范围 (日期+时间)">
+      <el-date-picker
         v-model="taskForm.timeRange"
-        is-range
+        type="datetimerange"
         range-separator="至"
-        start-placeholder="开始"
-        end-placeholder="结束"
-        format="HH:mm"
+        start-placeholder="开始时间"
+        end-placeholder="结束时间"
+        format="YYYY-MM-DD HH:mm"
+        style="width: 100%"
       />
     </el-form-item>
+
     <el-form-item label="晚归截止时间 (可选)">
-      <el-time-picker
+      <el-date-picker
         v-model="taskForm.lateTime"
-        placeholder="超过正常结束时间后的截止点"
-        format="HH:mm"
+        type="datetime"
+        placeholder="超过正常结束时间后的最终截止点"
+        format="YYYY-MM-DD HH:mm"
+        style="width: 100%"
       />
     </el-form-item>
-    <el-form-item label="打卡半径 (米)">
-      <el-input-number v-model="taskForm.radius" :min="100" :step="100" />
-    </el-form-item>
+
+    <el-row :gutter="20">
+      <el-col :span="12">
+        <el-form-item label="打卡半径 (米)">
+          <el-input-number v-model="taskForm.radius" :min="100" :step="100" style="width: 100%" />
+        </el-form-item>
+      </el-col>
+      <el-col :span="12">
+         <el-form-item label="需要照片">
+            <el-switch v-model="taskForm.needMaterial" />
+         </el-form-item>
+      </el-col>
+    </el-row>
   </el-form>
   <template #footer>
     <el-button @click="showCreateTask = false">取消</el-button>
@@ -839,37 +863,53 @@ const initCharts = () => {
 //打卡模块
 const attendanceTab = ref('monitor')
 const showCreateTask = ref(false)
-const taskFilter = ref('all') // 默认为 all
+const taskFilter = ref('all')
 
 // 1. 核心数据容器
-const taskList = ref([]) // 存储后端返回的 CheckConfig 列表
-const currentMonitorId = ref(null) // 当前正在“实时监控”的任务ID
+const taskList = ref([])
+const currentMonitorId = ref(null)
 const attendanceStats = ref([
   { label: '应到人数', value: 0, type: 'info' },
   { label: '正常签到', value: 0, type: 'success' },
   { label: '晚归人员', value: 0, type: 'warning' },
   { label: '缺勤/异常', value: 0, type: 'danger' }
 ])
-const abnormalList = ref([]) // 异常人员列表 (缺勤 + 晚归)
+const abnormalList = ref([])
 
 // 2. 表单数据
+// 修改点：timeRange 默认为空数组，等待用户选择日期+时间
 const taskForm = ref({
   title: '',
-  // 默认时间：现在开始，1小时后结束
-  timeRange: [new Date(), new Date(new Date().getTime() + 60 * 60 * 1000)],
+  timeRange: [], // [Date, Date]
   radius: 500,
-  lateTime: null // 可选：晚归截止时间
+  lateTime: null, // Date
+  needMaterial: false
 })
+
+// ---------------------- 工具函数 ----------------------
+
+// 核心修改：手动格式化时间，确保发送给后端的是 "YYYY-MM-DD HH:mm"
+// 使用 getHours() 获取本地时间（东八区），避免 toISOString() 转成 UTC
+const formatDateStr = (date) => {
+  if (!date) return null
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const min = String(date.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${d} ${h}:${min}`
+}
 
 // ---------------------- API 交互方法 ----------------------
 
 // 3. 获取查寝任务列表 (GET /api/dorm_check/config/)
 const fetchAttendanceTasks = async () => {
   try {
+    // 接口地址更新
     const res = await request.get('/dorm_check/config/')
     taskList.value = res
 
-    // 逻辑优化：如果有任务，且当前没有选中的监控ID，默认选中第一个（通常是最新的）
+    // 如果有任务且当前无选中，默认选中第一个（通常是最新的）
     if (res.length > 0 && !currentMonitorId.value) {
       currentMonitorId.value = res[0].config_id
       fetchTaskStats(res[0].config_id)
@@ -890,7 +930,6 @@ const fetchTaskStats = async (configId) => {
     const stats = res.statistics
     const lists = res.lists
 
-    // 更新四个统计卡片
     attendanceStats.value = [
       { label: '应到人数', value: stats.total, type: 'info' },
       { label: '正常签到', value: stats.normal, type: 'success' },
@@ -898,20 +937,18 @@ const fetchTaskStats = async (configId) => {
       { label: '缺勤/异常', value: stats.absent, type: 'danger' }
     ]
 
-    // 处理异常名单：合并“晚归”和“缺勤”
-    // 注意：后端返回结构中，absent 列表里 items 有 id 和 name
     const lateList = lists.late.map(item => ({
       student_name: item.name,
-      student_id: item.student_id || '未知', // 视后端 lists.late 具体返回字段调整
+      student_id: item.id || '未知',
       last_location: '已打卡(晚归)',
-      status: 'late', // 内部状态标识
+      status: 'late',
       check_time: item.time,
       reason: item.reason
     }))
 
     const absentList = lists.absent.map(item => ({
       student_name: item.name,
-      student_id: item.id, // 后端返回的是 id
+      student_id: item.id,
       last_location: '无记录',
       status: 'absent',
       check_time: '--',
@@ -926,38 +963,34 @@ const fetchTaskStats = async (configId) => {
   }
 }
 
-// 5. 辅助函数：格式化时间为 Django 接受的 "YYYY-MM-DD HH:MM"
-const formatDateTime = (date) => {
-  if (!date) return null
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  const h = String(date.getHours()).padStart(2, '0')
-  const min = String(date.getMinutes()).padStart(2, '0')
-  return `${y}-${m}-${d} ${h}:${min}`
-}
-
-// 6. 提交新任务 (POST /api/dorm_check/config/)
+// 5. 提交新任务 (POST /api/dorm_check/config/)
 const submitTask = async () => {
-  if (!taskForm.value.title || !taskForm.value.timeRange) {
-    ElMessage.warning('请补全任务信息')
+  // 校验：必须选择时间范围
+  if (!taskForm.value.title || !taskForm.value.timeRange || taskForm.value.timeRange.length < 2) {
+    ElMessage.warning('请补全任务信息（标题及起止时间）')
     return
   }
 
   const payload = {
     config_name: taskForm.value.title,
-    normal_start: formatDateTime(taskForm.value.timeRange[0]),
-    normal_end: formatDateTime(taskForm.value.timeRange[1]),
+    // 使用自定义格式化函数，转为 "2026-01-11 21:00" 格式
+    normal_start: formatDateStr(taskForm.value.timeRange[0]),
+    normal_end: formatDateStr(taskForm.value.timeRange[1]),
+    // 晚归时间可选
+    late_end: taskForm.value.lateTime ? formatDateStr(taskForm.value.lateTime) : null,
     valid_range: taskForm.value.radius,
-    need_material: false, // 简化处理，默认false
-    // 如果有晚归时间设置，否则默认为正常结束时间后延1.5小时或置空
-    late_end: taskForm.value.lateTime ? formatDateTime(taskForm.value.lateTime) : null
+    need_material: taskForm.value.needMaterial
   }
 
   try {
+    // 接口地址更新
     await request.post('/dorm_check/config/', payload)
     ElMessage.success('查寝任务发布成功')
     showCreateTask.value = false
+    // 重置表单
+    taskForm.value.title = ''
+    taskForm.value.timeRange = []
+    taskForm.value.lateTime = null
     // 刷新列表
     fetchAttendanceTasks()
   } catch (error) {
@@ -966,21 +999,18 @@ const submitTask = async () => {
   }
 }
 
-// 7. 切换监控的任务
 const handleMonitorTaskChange = (val) => {
     currentMonitorId.value = val
     fetchTaskStats(val)
 }
 
-// 在 onMounted 中加入调用
 onMounted(() => {
   fetchProfile()
   fetchDashboardStats()
   fetchLeaveData()
-  fetchAttendanceTasks() // 新增：初始化加载打卡任务
+  fetchAttendanceTasks()
   nextTick(() => initCharts())
 })
-
 
 
 
